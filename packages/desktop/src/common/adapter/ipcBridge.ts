@@ -40,6 +40,8 @@ import type {
   GetConfigOptionsResponse,
   SetConfigOptionRequest,
   SetConfigOptionResponse,
+  UpdateConversationRuntimeBindingsRequest,
+  UpdateConversationRuntimeBindingsResponse,
 } from '../types/platform/acpTypes';
 import type {
   CreateProviderRequest,
@@ -352,6 +354,13 @@ export const conversation = {
   restartRuntime: httpPost<EnsureConversationRuntimeResponse, { conversation_id: string }>(
     (p) => `/api/conversations/${p.conversation_id}/runtime/restart`,
     () => undefined
+  ),
+  updateRuntimeBindings: httpPost<
+    UpdateConversationRuntimeBindingsResponse,
+    UpdateConversationRuntimeBindingsRequest & { conversation_id: string }
+  >(
+    (p) => `/api/conversations/${p.conversation_id}/runtime/bindings`,
+    (p) => ({ mcp_server_ids: p.mcp_server_ids, skills: p.skills })
   ),
   activeLease: httpPost<void, { conversation_id: string }>(
     (p) => `/api/conversations/${p.conversation_id}/active-lease`,

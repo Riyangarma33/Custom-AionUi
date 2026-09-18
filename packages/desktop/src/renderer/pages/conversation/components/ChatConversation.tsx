@@ -26,6 +26,7 @@ import ChatLayout from './ChatLayout';
 import ChatSlider from './ChatSlider.tsx';
 import AcpModelSelector from '@/renderer/components/agent/AcpModelSelector';
 import AcpRuntimeRestartButton from '@/renderer/components/agent/AcpRuntimeRestartButton';
+import ConversationSkillsIndicator from './ConversationSkillsIndicator';
 import { getConversationOrNull } from '@/renderer/pages/conversation/utils/conversationCache';
 import { getConversationCreateErrorMessage } from '@/renderer/pages/conversation/utils/conversationCreateError';
 import GoogleModelSelector from '../platforms/gemini/GoogleModelSelector';
@@ -217,6 +218,9 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
             onSetThoughtLevel={handleThoughtLevelSetOption}
           />
         )}
+        <div className='shrink-0'>
+          <ConversationSkillsIndicator conversation={conversation} />
+        </div>
       </div>
     ),
     workspaceEnabled,
@@ -419,6 +423,14 @@ const ChatConversation: React.FC<{
             conversation_id={conversation.id}
             availability={runtimeReadyConversationId === conversation.id ? 'ready' : 'initializing'}
           />
+        </div>
+      )}
+      {conversation && !isLegacyReadOnlyConversation && (
+        <div className='shrink-0'>
+          {/* Phase 2A: interactive MCP servers & skills manager. The pill is
+              visible on desktop and mobile; the popover is width-capped for
+              the 390-523px responsive breakpoints. */}
+          <ConversationSkillsIndicator conversation={conversation} />
         </div>
       )}
     </div>

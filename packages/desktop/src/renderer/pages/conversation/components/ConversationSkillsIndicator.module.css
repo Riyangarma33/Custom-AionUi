@@ -1,0 +1,132 @@
+/* Segmented Tabs Container Track */
+.tabsTrack {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 8px;
+  background-color: var(--color-fill-2);
+  border: 1px solid var(--color-border-2, rgba(0, 0, 0, 0.06));
+}
+
+:global([data-theme='dark']) .tabsTrack,
+:global([arco-theme='dark']) .tabsTrack {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Individual Segmented Tab Button */
+.tabBtn {
+  flex: 1;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: transparent;
+  color: var(--color-text-2);
+  user-select: none;
+  font-weight: 500;
+  outline: none;
+}
+
+.tabBtn:hover:not(.tabBtnActive) {
+  color: var(--color-text-1);
+  background: var(--color-fill-1);
+}
+
+/* Selected Tab in Light Mode */
+.tabBtnActive {
+  background: #ffffff;
+  color: var(--color-text-1);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.tabCount {
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+/* Dark Mode Overrides for Tabs */
+:global([data-theme='dark']) .tabBtn,
+:global([arco-theme='dark']) .tabBtn {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+:global([data-theme='dark']) .tabBtn:hover:not(.tabBtnActive),
+:global([arco-theme='dark']) .tabBtn:hover:not(.tabBtnActive) {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:global([data-theme='dark']) .tabBtnActive,
+:global([arco-theme='dark']) .tabBtnActive {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  font-weight: 600;
+}
+
+:global([data-theme='dark']) .tabBtnActive .tabCount,
+:global([arco-theme='dark']) .tabBtnActive .tabCount {
+  color: rgba(255, 255, 255, 0.9);
+  opacity: 1;
+}
+
+/* Item Cards in List */
+.itemCard {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border-2);
+  background-color: var(--color-fill-1);
+  transition: all 0.15s ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+.itemCard:hover {
+  border-color: var(--color-border-3);
+  background-color: var(--color-fill-2);
+}
+
+.itemCardActive {
+  background-color: rgba(var(--primary-6), 0.08);
+  border-color: rgba(var(--primary-6), 0.35);
+}
+
+.itemCardActive:hover {
+  border-color: rgba(var(--primary-6), 0.55);
+}
+
+:global([data-theme='dark']) .itemCard,
+:global([arco-theme='dark']) .itemCard {
+  background-color: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+:global([data-theme='dark']) .itemCard:hover,
+:global([arco-theme='dark']) .itemCard:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+:global([data-theme='dark']) .itemCardActive,
+:global([arco-theme='dark']) .itemCardActive {
+  background-color: rgba(var(--primary-6), 0.16);
+  border-color: rgba(var(--primary-6), 0.45);
+}
+
+:global([data-theme='dark']) .itemCardActive:hover,
+:global([arco-theme='dark']) .itemCardActive:hover {
+  border-color: rgba(var(--primary-6), 0.65);
+}

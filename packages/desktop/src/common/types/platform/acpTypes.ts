@@ -4,7 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { TConversationRuntimeSummary } from '@/common/config/storage';
+import type {
+  IConversationMcpStatus,
+  ISessionMcpServer,
+  TChatConversation,
+  TConversationRuntimeSummary,
+} from '@/common/config/storage';
 
 /**
  * Advanced overrides exposed through the JSON panel of the custom agent
@@ -223,6 +228,37 @@ export type AcpConfigOptionDto = {
 export type EnsureConversationRuntimeResponse = {
   recovered: boolean;
   config_options: AcpConfigOptionDto[];
+  runtime: TConversationRuntimeSummary;
+};
+
+/**
+ * In-chat dynamic MCP servers & skills management (Phase 2A).
+ * Request body of `POST /api/conversations/{id}/runtime/bindings`: every
+ * present field is applied as the new per-conversation selection; omitted
+ * fields are left untouched.
+ */
+export type UpdateConversationRuntimeBindingsRequest = {
+  mcp_server_ids?: string[];
+  skills?: string[];
+};
+
+/**
+ * Response of `POST /api/conversations/{id}/runtime/bindings`.
+ * Commit-first contract: the binding change is always persisted; the
+ * restarted/pending/error trio reports what happened to the runtime restart.
+ */
+export type UpdateConversationRuntimeBindingsResponse = {
+  conversation: TChatConversation;
+  mcp: {
+    mcp_server_ids: string[];
+    mcp_servers: ISessionMcpServer[];
+    mcp_statuses: IConversationMcpStatus[];
+    session_mcp_servers: ISessionMcpServer[];
+  };
+  skills: string[];
+  restarted: boolean;
+  restart_pending: boolean;
+  restart_error: string | null;
   runtime: TConversationRuntimeSummary;
 };
 
