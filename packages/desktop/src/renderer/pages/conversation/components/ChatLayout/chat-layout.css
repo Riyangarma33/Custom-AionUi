@@ -54,11 +54,78 @@
   color: var(--color-text-1);
 }
 
+/* Header model pill and tools/skills pill: unified capsule geometry (Phase 2B-1) */
+.header-model-btn:not(.sendbox-tools *):not(.sendbox-actions *) {
+  height: 28px !important;
+  min-height: 28px !important;
+  line-height: 26px !important;
+  padding: 0 10px !important;
+  border-radius: 9999px !important;
+  border: 1px solid var(--color-border-2, rgba(0, 0, 0, 0.08)) !important;
+  background-color: var(--color-fill-2) !important;
+  color: var(--color-text-1) !important;
+  box-shadow: none !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+}
+
+.header-model-btn:not(.sendbox-tools *):not(.sendbox-actions *):hover {
+  background-color: var(--color-fill-3) !important;
+  border-color: var(--color-border-3, rgba(0, 0, 0, 0.15)) !important;
+}
+
+/* Header skills pill: matching 28px geometry with subtle tone step (fill-1) and interactive affordance */
+.header-skills-btn {
+  height: 28px !important;
+  min-height: 28px !important;
+  line-height: 26px !important;
+  padding: 0 10px !important;
+  border-radius: 9999px !important;
+  border: 1px solid var(--color-border-2, rgba(0, 0, 0, 0.08)) !important;
+  background-color: var(--color-fill-1) !important;
+  color: var(--color-text-1) !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+}
+
+.header-skills-btn:hover {
+  background-color: var(--color-fill-2) !important;
+  border-color: var(--color-border-3, rgba(0, 0, 0, 0.15)) !important;
+}
+
+[data-theme='dark'] .header-model-btn:not(.sendbox-tools *):not(.sendbox-actions *),
+[arco-theme='dark'] .header-model-btn:not(.sendbox-tools *):not(.sendbox-actions *) {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme='dark'] .header-model-btn:not(.sendbox-tools *):not(.sendbox-actions *):hover,
+[arco-theme='dark'] .header-model-btn:not(.sendbox-tools *):not(.sendbox-actions *):hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+[data-theme='dark'] .header-skills-btn,
+[arco-theme='dark'] .header-skills-btn {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme='dark'] .header-skills-btn:hover,
+[arco-theme='dark'] .header-skills-btn:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+
 /* Header model pill — only cap width on mobile, where the titlebar slot has
    limited horizontal room. Desktop lets the pill grow to fit the full name. */
 @media (max-width: 767px) {
   .header-model-btn {
     max-width: 140px;
+  }
+
+  .header-skills-btn {
+    max-width: 160px;
   }
 }
 

@@ -19,7 +19,8 @@ import { usePreviewContext } from '@/renderer/pages/conversation/Preview';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
 import { iconColors } from '@/renderer/styles/colors';
-import { Button, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
+import RuntimeSelectorPill from '@/renderer/components/agent/RuntimeSelectorPill';
+import { Dropdown, Menu, Tooltip } from '@arco-design/web-react';
 import { Brain, Down } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -50,21 +51,18 @@ const AionrsModelSelector: React.FC<{
   if (disabled || !selection) {
     return (
       <Tooltip content={t('conversation.welcome.modelSwitchNotSupported')} position='top'>
-        <Button
+        <RuntimeSelectorPill
+          testId='aionrs-model-selector'
           className={classNames(
             'sendbox-model-btn header-model-btn',
             compact && '!max-w-[120px]',
             isMobileHeaderCompact && '!max-w-[160px]'
           )}
-          shape='round'
-          size='small'
           style={{ cursor: 'default' }}
-        >
-          <span className='flex items-center gap-6px min-w-0'>
-            {renderLogo()}
-            <span className={compact ? 'block truncate' : undefined}>{t('conversation.welcome.useCliModel')}</span>
-          </span>
-        </Button>
+          label={t('conversation.welcome.useCliModel')}
+          leading={renderLogo()}
+          disabled={false}
+        />
       </Tooltip>
     );
   }
@@ -161,22 +159,17 @@ const AionrsModelSelector: React.FC<{
         </Menu>
       }
     >
-      <Button
-        data-testid='aionrs-model-selector'
+      <RuntimeSelectorPill
+        testId='aionrs-model-selector'
         className={classNames(
           'sendbox-model-btn header-model-btn',
           compact && '!max-w-[120px]',
           isMobileHeaderCompact && '!max-w-[160px]'
         )}
-        shape='round'
-        size='small'
-      >
-        <span className='flex items-center gap-6px min-w-0'>
-          {renderLogo()}
-          <span className={compact ? 'block truncate' : undefined}>{combinedLabel}</span>
-          <Down theme='outline' size={12} fill={iconColors.secondary} className='shrink-0' />
-        </span>
-      </Button>
+        label={combinedLabel}
+        leading={renderLogo()}
+        trailing={<Down theme='outline' size={12} fill={iconColors.secondary} className='shrink-0' />}
+      />
     </Dropdown>
   );
 };

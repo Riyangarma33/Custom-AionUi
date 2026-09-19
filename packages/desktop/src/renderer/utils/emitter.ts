@@ -36,6 +36,8 @@ interface EventTypes {
   'chat.history.refresh': void;
   // 会话删除事件 / Conversation deletion event
   'conversation.deleted': [string]; // conversation_id
+  // 打开会话技能与 MCP 设置弹窗 / Open session skills & MCP modal
+  'conversation.openSkillsModal': [string | undefined]; // target conversation_id
   // 预览面板事件 / Preview panel events
   'preview.open': [
     { content: string; contentType: PreviewContentType; metadata?: { title?: string; file_name?: string } },

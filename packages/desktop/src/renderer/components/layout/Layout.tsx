@@ -369,8 +369,12 @@ const Layout: React.FC<{
         overflow: 'visible' as const,
       };
 
+  const isNarrowViewport = isMobile || viewportWidth < 1024;
+
   return (
-    <LayoutContext.Provider value={{ isMobile, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }}>
+    <LayoutContext.Provider
+      value={{ isMobile, isNarrowViewport, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }}
+    >
       <NavigationHistoryProvider>
         <div className='app-shell flex flex-col size-full min-h-0'>
           <Titlebar workspaceAvailable={workspaceAvailable} />

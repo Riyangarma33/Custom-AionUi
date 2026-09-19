@@ -49,7 +49,7 @@ import { localSelectionItems, mergeFileSelectionItems } from '@/renderer/utils/f
 import { collectChatFileRefs, splitChatFileRefs } from '@/renderer/utils/file/messageFiles';
 import type { AgentModeOption } from '@/renderer/utils/model/agentTypes';
 import { Button, Message, Tag } from '@arco-design/web-react';
-import { Brain, Lightning, MagicHat, Shield } from '@icon-park/react';
+import { Brain, Lightning, Shield } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { classifyConversationBusyError } from '../conversationBusyError';
@@ -573,6 +573,15 @@ const AionrsSendBox: React.FC<{
           onSelect: (key) => void handleSheetModeChange(key),
         },
       },
+      {
+        key: 'tools-skills',
+        icon: <Lightning theme='outline' size='16' />,
+        label: t('conversation.bindings.title', { defaultValue: 'Session Tools & Skills' }),
+        meta: `${loadedSkills.length} · MCP ${loadedMcpStatuses.length}`,
+        onClick: () => {
+          emitter.emit('conversation.openSkillsModal', conversation_id);
+        },
+      },
       ...attachEntries,
     ];
 
@@ -603,55 +612,10 @@ const AionrsSendBox: React.FC<{
       });
     }
 
-    if (loadedSkills.length > 0) {
-      const skillOptions: MobileActionSheetOption[] = loadedSkills.map((name) => ({
-        key: name,
-        label: `/${name}`,
-      }));
-      entries.push({
-        key: 'skills',
-        icon: <MagicHat theme='outline' size='16' />,
-        label: t('common.selectedSkills', { defaultValue: 'Selected skills' }),
-        variant: 'muted',
-        submenu: {
-          title: t('common.selectedSkills', { defaultValue: 'Selected skills' }),
-          selectable: false,
-          options: skillOptions,
-          onSelect: (name) => {
-            setContent(`/${name} `);
-          },
-        },
-      });
-    }
-
-    if (loadedMcpStatuses.length > 0) {
-      const mcpOptions: MobileActionSheetOption[] = loadedMcpStatuses.map((item) => ({
-        key: item.id,
-        label: item.name,
-        description:
-          item.status === 'loaded'
-            ? undefined
-            : item.reason
-              ? `${t(`conversation.mcp.status.${item.status}` as const)} · ${item.reason}`
-              : t(`conversation.mcp.status.${item.status}` as const),
-      }));
-      entries.push({
-        key: 'mcp',
-        icon: <Shield theme='outline' size='16' />,
-        label: t('conversation.mcp.selected', { defaultValue: 'Selected MCP' }),
-        variant: 'muted',
-        submenu: {
-          title: t('conversation.mcp.selected', { defaultValue: 'Selected MCP' }),
-          selectable: false,
-          options: mcpOptions,
-          onSelect: () => undefined,
-        },
-      });
-    }
-
     return entries;
   }, [
     attachEntries,
+    conversation_id,
     currentMode,
     dynamicModes,
     handleSheetModeChange,
@@ -663,7 +627,6 @@ const AionrsSendBox: React.FC<{
     runtimeConfig,
     runtimeMode,
     runtimeThoughtLevel,
-    setContent,
     t,
   ]);
 

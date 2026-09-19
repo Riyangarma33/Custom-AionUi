@@ -9,19 +9,22 @@ import { mcpService } from '@/common/adapter/ipcBridge';
 import type { IConversationMcpStatus, IMcpServer, TChatConversation } from '@/common/config/storage';
 import type { UpdateConversationRuntimeBindingsRequest } from '@/common/types/platform/acpTypes';
 import AionModal from '@/renderer/components/base/AionModal';
+import RuntimeSelectorPill from '@/renderer/components/agent/RuntimeSelectorPill';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { refreshConversationCache } from '@/renderer/pages/conversation/utils/conversationCache';
 import { iconColors } from '@/renderer/styles/colors';
+import { useAddEventListener } from '@/renderer/utils/emitter';
 import { Button, Input, Message, Spin, Switch, Tag } from '@arco-design/web-react';
-import { Connection, Lightning, Search } from '@icon-park/react';
+import { Connection, Lightning, Search, SettingTwo } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import styles from './ConversationSkillsIndicator.module.css';
 
 type ConversationSkillsIndicatorProps = {
   conversation: TChatConversation | undefined;
+  triggerVisible?: boolean;
 };
 
 type ConversationBindingExtra = {
@@ -43,10 +46,14 @@ type FilterTabKey = 'all' | 'skills' | 'mcp' | 'active';
  * restarts the cached agent runtime, so the change applies to the running
  * session while the chat history is kept.
  */
-const ConversationSkillsIndicator: React.FC<ConversationSkillsIndicatorProps> = ({ conversation }) => {
+const ConversationSkillsIndicator: React.FC<ConversationSkillsIndicatorProps> = ({
+  conversation,
+  triggerVisible,
+}) => {
   const { t } = useTranslation();
-  const { layout } = useLayoutContext();
-  const isMobile = layout?.isMobile ?? false;
+  const layout = useLayoutContext();
+  const isMobile = Boolean(layout?.isMobile);
+  const showTrigger = triggerVisible ?? !isMobile;
 
   const [open, setOpen] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -146,13 +153,23 @@ const ConversationSkillsIndicator: React.FC<ConversationSkillsIndicatorProps> = 
   const pendingRemovedSkills = draftSkills ? currentSkills.filter((name) => !draftSkills.includes(name)).length : 0;
   const pendingCount = pendingAddedMcp + pendingRemovedMcp + pendingAddedSkills + pendingRemovedSkills;
 
-  const handleOpen = () => {
+  const handleOpen = useCallback(() => {
     setDraftMcp(null);
     setDraftSkills(null);
     setSearchQuery('');
     setActiveTab('all');
     setOpen(true);
-  };
+  }, []);
+
+  useAddEventListener(
+    'conversation.openSkillsModal',
+    (targetConversationId) => {
+      if (!targetConversationId || targetConversationId === conversation?.id) {
+        handleOpen();
+      }
+    },
+    [conversation?.id, handleOpen]
+  );
 
   const handleClose = () => {
     if (applying) return;
@@ -321,24 +338,38 @@ const ConversationSkillsIndicator: React.FC<ConversationSkillsIndicatorProps> = 
 
   return (
     <>
-      <button
-        type='button'
-        onClick={handleOpen}
-        className='inline-flex items-center gap-4px rounded-full px-8px py-2px bg-2 hover:bg-fill-3 active:scale-95 cursor-pointer border-none outline-none transition-all'
-        data-testid='skills-indicator'
-        aria-label={t('conversation.bindings.title', 'Session Tools & Skills')}
-        title={t('conversation.bindings.title', 'Session Tools & Skills')}
-      >
-        {runtimeRestarting || applying ? (
-          <Spin size={12} />
-        ) : (
-          <Lightning theme='filled' size={14} fill={iconColors.primary} strokeWidth={2} style={{ lineHeight: 0 }} />
-        )}
-        <span className='text-13px text-t-primary font-medium lh-[1]' data-testid='skills-indicator-count'>
-          {skillsCount}
-        </span>
-        <span className='text-11px text-t-secondary lh-[1] opacity-75'>· MCP {mcpCount}</span>
-      </button>
+      {showTrigger && (
+        <RuntimeSelectorPill
+          testId='skills-indicator'
+          className={classNames('header-skills-btn header-model-btn', styles.skillsPill)}
+          onClick={handleOpen}
+          aria-label={t('conversation.bindings.title', 'Session Tools & Skills')}
+          title={t('conversation.bindings.title', 'Session Tools & Skills')}
+          leading={
+            runtimeRestarting || applying ? (
+              <Spin size={12} />
+            ) : (
+              <Lightning theme='filled' size={14} fill={iconColors.primary} strokeWidth={2} style={{ lineHeight: 0 }} />
+            )
+          }
+          trailing={
+            <SettingTwo
+              theme='outline'
+              size={12}
+              fill={iconColors.secondary}
+              className='shrink-0 opacity-70 group-hover:opacity-100 transition-opacity'
+              aria-hidden='true'
+            />
+          }
+        >
+          <span className='flex items-center gap-4px min-w-0'>
+            <span className='text-13px text-t-primary font-medium lh-[1]' data-testid='skills-indicator-count'>
+              {skillsCount}
+            </span>
+            <span className='text-11px text-t-secondary lh-[1] opacity-75'>· MCP {mcpCount}</span>
+          </span>
+        </RuntimeSelectorPill>
+      )}
 
       <AionModal
         visible={open}

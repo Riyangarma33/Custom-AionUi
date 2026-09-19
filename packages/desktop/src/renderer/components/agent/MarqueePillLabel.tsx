@@ -34,14 +34,19 @@ const MarqueePillLabel: React.FC<{
 
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
+  const isNarrowViewport =
+    layout?.isNarrowViewport ??
+    (isMobile || (typeof window !== 'undefined' ? window.innerWidth < 1024 : false));
+  const shouldTruncateWithEllipsis = isMobile || isNarrowViewport;
 
   const [active, setActive] = useState(false);
   // Store computed scroll distance for useLayoutEffect
   const scrollDistRef = useRef(0);
 
   const handleMouseEnter = useCallback(() => {
-    // Touch devices have no hover affordance — skip the marquee animation entirely.
-    if (isMobile) return;
+    // Touch devices and narrow/tablet viewports skip the marquee animation entirely,
+    // relying on ellipsis truncation instead.
+    if (shouldTruncateWithEllipsis) return;
     const container = containerRef.current;
     const measure = measureRef.current;
     if (!container || !measure) return;
@@ -52,7 +57,7 @@ const MarqueePillLabel: React.FC<{
 
     scrollDistRef.current = textWidth + MARQUEE_GAP;
     setActive(true);
-  }, [isMobile]);
+  }, [shouldTruncateWithEllipsis]);
 
   const handleMouseLeave = useCallback(() => {
     setActive(false);
@@ -93,12 +98,12 @@ const MarqueePillLabel: React.FC<{
         {children}
       </span>
       {/* Static text: visible by default, hidden when marquee is active.
-          On mobile we clip with ellipsis since hover marquee never fires. */}
+          On mobile and narrow tablet viewports, clip with ellipsis since marquee is suppressed. */}
       <span
         className={
           active
             ? 'leading-none invisible'
-            : isMobile
+            : shouldTruncateWithEllipsis
               ? 'leading-none block overflow-hidden text-ellipsis'
               : 'leading-none'
         }

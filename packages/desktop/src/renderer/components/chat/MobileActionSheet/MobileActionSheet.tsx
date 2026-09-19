@@ -149,8 +149,16 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, ti
                 <Fragment key={entry.key}>
                   {entry.dividerBefore && index !== 0 && <div className={styles.divider} />}
                   <div
+                    role='button'
+                    tabIndex={entry.disabled ? -1 : 0}
                     className={`${styles.item} ${entry.disabled ? styles.disabled : ''}`}
                     onClick={() => handleEntryClick(entry)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleEntryClick(entry);
+                      }
+                    }}
                     data-testid={`mobile-action-sheet-${entry.key}`}
                   >
                     {entry.icon && (

@@ -208,7 +208,7 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
     siderTitle: sliderTitle,
     sider: <ChatSlider conversation={conversation} />,
     headerExtra: (
-      <div className='flex items-center gap-8px'>
+      <div className='flex items-center gap-6px'>
         <CronJobManager conversation_id={conversation.id} cron_job_id={cronJobId} />
         {!isMobile && (
           <AionrsModelSelector
@@ -218,9 +218,11 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
             onSetThoughtLevel={handleThoughtLevelSetOption}
           />
         )}
-        <div className='shrink-0'>
-          <ConversationSkillsIndicator conversation={conversation} />
-        </div>
+        {!isMobile && (
+          <div className='shrink-0'>
+            <ConversationSkillsIndicator conversation={conversation} />
+          </div>
+        )}
       </div>
     ),
     workspaceEnabled,
@@ -249,6 +251,7 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
 
   return (
     <ChatLayout {...chatLayoutProps} conversation_id={conversation.id}>
+      {isMobile && <ConversationSkillsIndicator conversation={conversation} />}
       <AionrsChat
         conversation_id={conversation.id}
         workspace={conversation.extra.workspace}
@@ -257,7 +260,10 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
         session_mode={conversation.extra?.session_mode}
         cron_job_id={cronJobId}
         loadedSkills={(conversation.extra as { skills?: string[] } | undefined)?.skills}
-        loadedMcpServers={(conversation.extra as { mcp_servers?: string[] } | undefined)?.mcp_servers}
+        loadedMcpServers={
+          (conversation.extra as { mcp_server_ids?: string[]; mcp_servers?: string[] } | undefined)?.mcp_server_ids ??
+          (conversation.extra as { mcp_servers?: string[] } | undefined)?.mcp_servers
+        }
         loadedMcpStatuses={
           (conversation.extra as { mcp_statuses?: IConversationMcpStatus[] } | undefined)?.mcp_statuses
         }
@@ -335,7 +341,10 @@ const ChatConversation: React.FC<{
             hideSendBox={resolvedHideSendBox}
             emptySlot={emptySlot}
             loadedSkills={(conversation.extra as { skills?: string[] } | undefined)?.skills}
-            loadedMcpServers={(conversation.extra as { mcp_servers?: string[] } | undefined)?.mcp_servers}
+            loadedMcpServers={
+              (conversation.extra as { mcp_server_ids?: string[]; mcp_servers?: string[] } | undefined)?.mcp_server_ids ??
+              (conversation.extra as { mcp_servers?: string[] } | undefined)?.mcp_servers
+            }
             loadedMcpStatuses={
               (conversation.extra as { mcp_statuses?: IConversationMcpStatus[] } | undefined)?.mcp_statuses
             }
@@ -410,7 +419,7 @@ const ChatConversation: React.FC<{
         };
 
   const headerExtraNode = (
-    <div className='flex items-center gap-8px'>
+    <div className='flex items-center gap-6px'>
       {conversation && (
         <div className='shrink-0'>
           <CronJobManager conversation_id={conversation.id} cron_job_id={cronJobId} />
@@ -425,11 +434,10 @@ const ChatConversation: React.FC<{
           />
         </div>
       )}
-      {conversation && !isLegacyReadOnlyConversation && (
+      {conversation && !isLegacyReadOnlyConversation && !isMobile && (
         <div className='shrink-0'>
           {/* Phase 2A: interactive MCP servers & skills manager. The pill is
-              visible on desktop and mobile; the popover is width-capped for
-              the 390-523px responsive breakpoints. */}
+              visible on desktop and hidden on mobile (accessible via sendbox + sheet). */}
           <ConversationSkillsIndicator conversation={conversation} />
         </div>
       )}
@@ -452,6 +460,9 @@ const ChatConversation: React.FC<{
       }
       conversation_id={conversation?.id}
     >
+      {conversation && !isLegacyReadOnlyConversation && isMobile && (
+        <ConversationSkillsIndicator conversation={conversation} />
+      )}
       {conversationNode}
     </ChatLayout>
   );

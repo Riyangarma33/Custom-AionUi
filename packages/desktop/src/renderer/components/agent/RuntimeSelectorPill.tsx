@@ -15,11 +15,12 @@ type RuntimeSelectorPillProps = Omit<
   testId?: string;
   className: string;
   label?: string;
+  children?: React.ReactNode;
   leading?: React.ReactNode;
   trailing?: React.ReactNode;
   loading?: boolean;
   disabled?: boolean;
-  onClick?: () => void;
+  onClick?: (event: React.MouseEvent<HTMLElement>) => void;
   style?: React.CSSProperties;
 };
 
@@ -42,7 +43,19 @@ export const RuntimeSelectorLoadingIndicator: React.FC = () => (
 
 const RuntimeSelectorPill = React.forwardRef<React.ElementRef<typeof Button>, RuntimeSelectorPillProps>(
   (
-    { testId, className, label, leading, trailing, loading = false, disabled = false, onClick, style, ...buttonProps },
+    {
+      testId,
+      className,
+      label,
+      children,
+      leading,
+      trailing,
+      loading = false,
+      disabled = false,
+      onClick,
+      style,
+      ...buttonProps
+    },
     ref
   ) => (
     <Button
@@ -59,6 +72,7 @@ const RuntimeSelectorPill = React.forwardRef<React.ElementRef<typeof Button>, Ru
       <span className='flex items-center gap-6px min-w-0 leading-none'>
         {leading}
         {label && <MarqueePillLabel>{label}</MarqueePillLabel>}
+        {children}
         {loading ? <RuntimeSelectorLoadingIndicator /> : trailing}
       </span>
     </Button>

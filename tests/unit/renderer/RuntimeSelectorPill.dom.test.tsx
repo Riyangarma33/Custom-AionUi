@@ -47,4 +47,29 @@ describe('RuntimeSelectorPill', () => {
     expect(button).toHaveAttribute('aria-expanded', 'true');
     expect(ref.current).toBe(button);
   });
+
+  it('renders custom children and trailing affordance when provided', () => {
+    const handleClick = vi.fn();
+    render(
+      <RuntimeSelectorPill
+        testId='skills-indicator'
+        className='header-skills-btn'
+        onClick={handleClick}
+        leading={<span data-testid='leading-icon'>icon</span>}
+        trailing={<span data-testid='trailing-gear'>gear</span>}
+      >
+        <span data-testid='skills-indicator-count'>3</span>
+        <span>· MCP 2</span>
+      </RuntimeSelectorPill>
+    );
+
+    const button = screen.getByTestId('skills-indicator');
+    expect(button).toBeInTheDocument();
+    expect(screen.getByTestId('leading-icon')).toHaveTextContent('icon');
+    expect(screen.getByTestId('skills-indicator-count')).toHaveTextContent('3');
+    expect(screen.getByTestId('trailing-gear')).toHaveTextContent('gear');
+
+    button.click();
+    expect(handleClick).toHaveBeenCalledTimes(1);
+  });
 });
