@@ -20,6 +20,7 @@
   bottom: 0;
   max-height: min(72vh, 560px);
   background: var(--color-bg-1, #ffffff);
+  color: var(--color-text-1, #1d2129);
   border-top-left-radius: 20px;
   border-top-right-radius: 20px;
   box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.12);
@@ -171,6 +172,7 @@
   position: absolute;
   inset: 0;
   background: var(--color-bg-1, #ffffff);
+  color: var(--color-text-1, #1d2129);
 }
 
 .paneActive {
@@ -214,6 +216,7 @@
   text-align: center;
   font-size: 14px;
   font-weight: 600;
+  color: var(--color-text-1, #1d2129);
   margin-inline-end: 56px;
 }
 

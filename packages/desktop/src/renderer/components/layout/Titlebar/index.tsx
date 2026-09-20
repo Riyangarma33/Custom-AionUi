@@ -17,6 +17,7 @@ import { useFeedback } from '@/renderer/hooks/context/FeedbackContext';
 import { resolveFeedbackModule } from '@/renderer/services/feedback/resolveFeedbackModule';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import { IS_DISCONTINUED_BUILD } from '@/renderer/utils/discontinuedBuild';
+import { emitter } from '@/renderer/utils/emitter';
 import MigrationInviteCapsule from './MigrationInviteCapsule';
 import './titlebar.css';
 
@@ -259,6 +260,45 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   }, [appTitle, layout?.isMobile, location.pathname]);
 
   useEffect(() => {
+    if (!layout?.isMobile) return;
+
+    const refreshMobileTitle = () => {
+      if (TEAM_MODE_ENABLED) {
+        const teamMatch = location.pathname.match(/^\/team\/([^/]+)/);
+        const team_id = teamMatch?.[1];
+        if (team_id) {
+          void ipcBridge.team.get
+            .invoke({ id: team_id })
+            .then((team) => {
+              setMobileCenterTitle(team?.name || appTitle);
+            })
+            .catch(() => {});
+          return;
+        }
+      }
+
+      const match = location.pathname.match(/^\/conversation\/([^/]+)/);
+      const conversation_id = match?.[1];
+      if (!conversation_id) {
+        setMobileCenterTitle(appTitle);
+        return;
+      }
+
+      void ipcBridge.conversation.get
+        .invoke({ id: conversation_id })
+        .then((conversation) => {
+          setMobileCenterTitle(conversation?.name || appTitle);
+        })
+        .catch(() => {});
+    };
+
+    emitter.on('chat.history.refresh', refreshMobileTitle);
+    return () => {
+      emitter.off('chat.history.refresh', refreshMobileTitle);
+    };
+  }, [appTitle, layout?.isMobile, location.pathname]);
+
+  useEffect(() => {
     if (!layout?.isMobile) {
       setMobileCenterOffset(0);
       return;
@@ -385,7 +425,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
           'app-titlebar__brand--centered': layout?.isMobile || !location.pathname.match(/^\/(conversation|team)\//),
         })}
         aria-label={layout?.isMobile ? mobileCenterTitle : appTitle}
-        title={layout?.isMobile ? mobileCenterTitle : appTitle}
+        title={layout?.isMobile && location.pathname.match(/^\/conversation\//) ? undefined : (layout?.isMobile ? mobileCenterTitle : appTitle)}
       >
         {layout?.isMobile &&
           (() => {
