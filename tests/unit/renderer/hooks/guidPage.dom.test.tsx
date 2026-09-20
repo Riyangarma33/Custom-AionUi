@@ -677,6 +677,40 @@ describe('GuidPage', () => {
     // Restore shared mock state for later tests.
     sendMock.isButtonDisabled = false;
   });
+
+  it('allows newline insertion on mobile bare Enter and submits only via Cmd/Ctrl+Enter or button', () => {
+    guidInputMock.input = 'hello world';
+    sendMock.isButtonDisabled = false;
+    sendMock.sendMessageHandler.mockClear();
+
+    render(
+      <LayoutContext.Provider value={{ isMobile: true } as any}>
+        <GuidPage />
+      </LayoutContext.Provider>
+    );
+
+    const onKeyDown = capturedGuidInputCardProps.at(-1)?.onKeyDown as (event: unknown) => void;
+    const preventDefaultBare = vi.fn();
+    // Bare Enter on mobile soft keyboard (no shiftKey, metaKey, ctrlKey)
+    onKeyDown({ key: 'Enter', shiftKey: false, metaKey: false, ctrlKey: false, preventDefault: preventDefaultBare });
+
+    expect(preventDefaultBare).not.toHaveBeenCalled();
+    expect(sendMock.sendMessageHandler).not.toHaveBeenCalled();
+
+    // Hardware keyboard shortcut on mobile/tablet (Cmd + Enter)
+    const preventDefaultCmd = vi.fn();
+    onKeyDown({ key: 'Enter', shiftKey: false, metaKey: true, ctrlKey: false, preventDefault: preventDefaultCmd });
+
+    expect(preventDefaultCmd).toHaveBeenCalled();
+    expect(sendMock.sendMessageHandler).toHaveBeenCalledTimes(1);
+
+    // Hardware keyboard shortcut on mobile/tablet (Ctrl + Enter)
+    const preventDefaultCtrl = vi.fn();
+    onKeyDown({ key: 'Enter', shiftKey: false, metaKey: false, ctrlKey: true, preventDefault: preventDefaultCtrl });
+
+    expect(preventDefaultCtrl).toHaveBeenCalled();
+    expect(sendMock.sendMessageHandler).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('GuidInputCard prefill focus', () => {

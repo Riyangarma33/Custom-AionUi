@@ -848,6 +848,9 @@ const SendBox: React.FC<{
     if (conversationExport.isOpen && value) {
       conversationExport.closeExportFlow();
     }
+    if (value.includes('\n')) {
+      setIsSingleLine(false);
+    }
     setInput(value);
     requestAnimationFrame(() => {
       syncCaretPosition();
@@ -1673,7 +1676,11 @@ const SendBox: React.FC<{
     defaultValue: isMacOS() ? '⌘ + Enter' : 'Ctrl + Enter',
   });
   const sendActionTooltip =
-    sendDisabled && sendDisabledTooltip ? sendDisabledTooltip : `${sendNowLabel} · ${enterShortcutLabel}`;
+    sendDisabled && sendDisabledTooltip
+      ? sendDisabledTooltip
+      : isMobile
+        ? sendNowLabel
+        : `${sendNowLabel} · ${enterShortcutLabel}`;
   const draftActionBaseTooltip = addToDraftTooltip ?? addToDraftLabel;
 
   const handlePrimaryAction = () => {
@@ -1687,6 +1694,7 @@ const SendBox: React.FC<{
 
   const handleAddToDraftShortcut = (event: React.KeyboardEvent) => {
     if (
+      isMobile ||
       event.key !== 'Enter' ||
       event.shiftKey ||
       event.altKey ||
@@ -1738,7 +1746,9 @@ const SendBox: React.FC<{
 
   const draftActionTooltip =
     typeof draftActionBaseTooltip === 'string'
-      ? `${draftActionBaseTooltip} · ${addToDraftShortcutLabel}`
+      ? isMobile
+        ? draftActionBaseTooltip
+        : `${draftActionBaseTooltip} · ${addToDraftShortcutLabel}`
       : draftActionBaseTooltip;
   const draftActionTitle = typeof draftActionTooltip === 'string' ? draftActionTooltip : addToDraftLabel;
   const draftActionIcon = <DraftBoxActionIcon size={20} strokeWidth={1.25} />;
@@ -2197,15 +2207,19 @@ const SendBox: React.FC<{
               }}
               {...compositionHandlers}
               autoSize={isSingleLine ? false : { minRows: 1, maxRows: 10 }}
-              onKeyDown={createKeyDownHandler(handlePrimaryAction, (event) => {
-                return (
-                  handleAddToDraftShortcut(event) ||
-                  handleAtSessionMenuKeyDown(event) ||
-                  handleAtFileMenuKeyDown(event) ||
-                  handleOverlayKeyDown(event) ||
-                  handleHistoryKeyDown(event)
-                );
-              })}
+              onKeyDown={createKeyDownHandler(
+                handlePrimaryAction,
+                (event) => {
+                  return (
+                    handleAddToDraftShortcut(event) ||
+                    handleAtSessionMenuKeyDown(event) ||
+                    handleAtFileMenuKeyDown(event) ||
+                    handleOverlayKeyDown(event) ||
+                    handleHistoryKeyDown(event)
+                  );
+                },
+                { isMobile }
+              )}
             ></Input.TextArea>
           </div>
           {isSingleLine && (

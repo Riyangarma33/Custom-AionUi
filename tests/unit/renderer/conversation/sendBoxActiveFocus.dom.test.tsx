@@ -196,6 +196,41 @@ describe('SendBox active-controlled focus', () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
+  it('bypasses send on mobile bare Enter and supports Cmd/Ctrl+Enter hardware keyboard submission', async () => {
+    layoutState.isMobile = true;
+    const onSend = vi.fn().mockResolvedValue(undefined);
+    const onAddToDraft = vi.fn();
+
+    render(<SendBoxHarness initialValue='mobile prompt message' onSend={onSend} onAddToDraft={onAddToDraft} />);
+
+    const textarea = screen.getByTestId('sendbox-input');
+
+    // Mobile virtual Return: bare Enter should NOT trigger send or draft
+    fireEvent.keyDown(textarea, { key: 'Enter', code: 'Enter' });
+    expect(onSend).not.toHaveBeenCalled();
+    expect(onAddToDraft).not.toHaveBeenCalled();
+
+    // Hardware keyboard on tablet/mobile: Cmd + Enter submits prompt
+    fireEvent.keyDown(textarea, { key: 'Enter', code: 'Enter', metaKey: true });
+    expect(onSend).toHaveBeenCalledWith('mobile prompt message');
+
+    // Hardware keyboard on tablet/mobile: Ctrl + Enter submits prompt
+    fireEvent.keyDown(textarea, { key: 'Enter', code: 'Enter', ctrlKey: true });
+    expect(onSend).toHaveBeenCalledTimes(2);
+
+    layoutState.isMobile = false;
+  });
+
+  it('displays bare sendNowLabel without shortcut in send button tooltip on mobile', () => {
+    layoutState.isMobile = true;
+    render(<SendBoxHarness initialValue='mobile text' />);
+
+    const sendBtn = screen.getByTestId('sendbox-send-btn');
+    expect(sendBtn.getAttribute('aria-label')).toBe('Send now');
+
+    layoutState.isMobile = false;
+  });
+
   it('focuses the textarea on mount when active is true (desktop)', async () => {
     layoutState.isMobile = false;
     render(<SendBoxHarness active={true} />);

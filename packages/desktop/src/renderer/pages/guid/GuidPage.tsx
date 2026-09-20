@@ -12,6 +12,7 @@ import { resolveLocaleKey } from '@/common/utils';
 import type { AssistantDetail } from '@/common/types/agent/assistantTypes';
 
 import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
+import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { appendPromptToDraft } from '@/renderer/hooks/chat/useSendBoxDraft';
 import { getFuzzyMatchIndices, useSlashCommandController } from '@/renderer/hooks/chat/useSlashCommandController';
 import { openExternalUrl } from '@/renderer/utils/platform';
@@ -57,6 +58,8 @@ const GuidPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
+  const layout = useLayoutContext();
+  const isMobile = layout?.isMobile ?? false;
   const guidContainerRef = useRef<HTMLDivElement>(null);
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
 
@@ -299,16 +302,30 @@ const GuidPage: React.FC = () => {
         return;
       }
 
-      if (event.key === 'Enter' && !event.shiftKey) {
-        event.preventDefault();
-        // Empty input is allowed — it creates an empty conversation ("start
-        // chat"). Mirror the send button's gate so Enter and click behave
-        // identically (blocked only while loading or with no assistant).
-        if (send.isButtonDisabled) return;
-        send.sendMessageHandler();
+      if (event.key === 'Enter') {
+        const hasModifier = event.metaKey || event.ctrlKey;
+        if (isMobile) {
+          // On mobile, bare Enter inserts a newline in textarea.
+          // Hardware keyboards (e.g. iPad Magic Keyboard) can submit via Cmd+Enter / Ctrl+Enter.
+          if (hasModifier && !event.shiftKey) {
+            event.preventDefault();
+            // Empty input is allowed — it creates an empty conversation ("start
+            // chat"). Mirror the send button's gate so Enter and click behave
+            // identically (blocked only while loading or with no assistant).
+            if (send.isButtonDisabled) return;
+            send.sendMessageHandler();
+          }
+        } else {
+          // Desktop: bare Enter submits; Shift+Enter creates a newline.
+          if (!event.shiftKey) {
+            event.preventDefault();
+            if (send.isButtonDisabled) return;
+            send.sendMessageHandler();
+          }
+        }
       }
     },
-    [send.isButtonDisabled, send.sendMessageHandler, slashController]
+    [isMobile, send.isButtonDisabled, send.sendMessageHandler, slashController]
   );
 
   const handleSelectAssistant = useCallback(
