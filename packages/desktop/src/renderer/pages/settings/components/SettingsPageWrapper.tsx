@@ -12,6 +12,7 @@ import {
   Cat,
   Communication,
   Computer,
+  Connection,
   Earth,
   Inbox,
   Info,
@@ -65,6 +66,12 @@ export function getBuiltinSettingsNavItems(isDesktop: boolean, t: TranslateFn): 
       icon: <Toolkit theme='outline' size='16' />,
       path: 'tools',
     },
+    'aws-cli': {
+      id: 'aws-cli',
+      label: t('settings.awsCli', { defaultValue: 'AWS CLI' }),
+      icon: <Connection theme='outline' size='16' />,
+      path: 'aws-cli',
+    },
     appearance: {
       id: 'appearance',
       label: t('settings.appearancePanel'),
@@ -88,7 +95,7 @@ export function getBuiltinSettingsNavItems(isDesktop: boolean, t: TranslateFn): 
     about: { id: 'about', label: t('settings.about'), icon: <Info theme='outline' size='16' />, path: 'about' },
   };
 
-  return BUILTIN_TAB_IDS.map((id) => builtinMap[id]);
+  return BUILTIN_TAB_IDS.map((id) => builtinMap[id]).filter(Boolean);
 }
 
 const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, className, contentClassName }) => {

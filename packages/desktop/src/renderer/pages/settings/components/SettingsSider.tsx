@@ -7,6 +7,7 @@ import {
   Cat,
   Communication,
   Computer,
+  Connection,
   Earth,
   Inbox,
   Info,
@@ -30,6 +31,7 @@ export const BUILTIN_TAB_IDS = [
   'model',
   'skills',
   'tools',
+  'aws-cli',
   'appearance',
   'webui',
   'pet',
@@ -56,6 +58,7 @@ export const LEGACY_ANCHOR_REMAP: Record<string, string> = {
  */
 const GROUP_HEADER_BEFORE: Record<string, string> = {
   agent: 'settings.groupAiCore',
+  'aws-cli': 'settings.groupIntegrations',
   appearance: 'settings.groupApp',
   archived: 'settings.archived.title',
   about: 'settings.groupAbout',
@@ -104,6 +107,12 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
         icon: <Toolkit />,
         path: 'tools',
       },
+      'aws-cli': {
+        id: 'aws-cli',
+        label: t('settings.awsCli', { defaultValue: 'AWS CLI' }),
+        icon: <Connection />,
+        path: 'aws-cli',
+      },
       appearance: { id: 'appearance', label: t('settings.appearancePanel'), icon: <Computer />, path: 'appearance' },
       webui: {
         id: 'webui',
@@ -123,7 +132,9 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
     };
 
     // Start with ordered builtin IDs, hiding desktop-only tabs in browser mode
-    const result: SiderItem[] = BUILTIN_TAB_IDS.filter((id) => isDesktop || id !== 'pet').map((id) => builtinMap[id]);
+    const result: SiderItem[] = BUILTIN_TAB_IDS.filter((id) => isDesktop || id !== 'pet')
+      .map((id) => builtinMap[id])
+      .filter(Boolean);
 
     // Extension tabs with position anchoring
     const beforeMap = new Map<string, IExtensionSettingsTab[]>();
