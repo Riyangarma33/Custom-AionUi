@@ -881,8 +881,9 @@ const AwsCliSettings: React.FC = () => {
         </div>
 
         {/* Toolbar Row 1: Search & Action Buttons */}
-        <div className='flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-12px mt-4px'>
-          <div className='flex-1 max-w-540px'>
+        <div className='flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-10px mt-4px'>
+          {/* Search + Compact Refresh on mobile & desktop */}
+          <div className='flex items-center gap-8px flex-1 max-w-full sm:max-w-500px'>
             <Input
               prefix={<Search />}
               placeholder={t('settings.awsSearchPlaceholder', {
@@ -891,20 +892,24 @@ const AwsCliSettings: React.FC = () => {
               allowClear
               value={searchQuery}
               onChange={setSearchQuery}
+              className='flex-1'
             />
+            <Tooltip content={t('common.refresh', { defaultValue: 'Refresh' })}>
+              <Button
+                icon={<Refresh className={loading ? 'animate-spin' : ''} />}
+                onClick={loadData}
+                disabled={loading}
+                className='flex-shrink-0'
+              />
+            </Tooltip>
           </div>
 
-          <Space size='small' className='justify-end'>
-            <Button
-              icon={<Refresh className={loading ? 'animate-spin' : ''} />}
-              onClick={loadData}
-              disabled={loading}
-            >
-              {t('common.refresh', { defaultValue: 'Refresh' })}
-            </Button>
+          {/* Creation actions: 2-column grid on mobile, inline on desktop */}
+          <div className='grid grid-cols-2 sm:flex sm:items-center gap-8px flex-shrink-0'>
             <Button
               icon={<LinkCloud />}
               onClick={() => setSsoSessionModalVisible(true)}
+              className='w-full sm:w-auto justify-center'
             >
               {t('settings.awsAddSsoSession', { defaultValue: 'Add SSO Session' })}
             </Button>
@@ -915,28 +920,33 @@ const AwsCliSettings: React.FC = () => {
                 setEditingProfile(null);
                 setProfileModalVisible(true);
               }}
+              className='w-full sm:w-auto justify-center'
             >
               {t('settings.awsAddProfile', { defaultValue: 'Add Profile' })}
             </Button>
-          </Space>
+          </div>
         </div>
 
         {/* Toolbar Row 2: Category Filters, View Mode, & Expand/Collapse */}
-        <div className='flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-12px flex-wrap'>
-          <Radio.Group
-            type='button'
-            size='small'
-            value={authFilter}
-            onChange={setAuthFilter}
-          >
-            <Radio value='all'>All ({stats.total})</Radio>
-            <Radio value='sso'>SSO ({stats.ssoCount})</Radio>
-            <Radio value='console_login'>Console ({stats.consoleCount})</Radio>
-            <Radio value='assume_role'>Role ({stats.assumeRoleCount})</Radio>
-            <Radio value='static_key'>Key ({stats.staticKeyCount})</Radio>
-          </Radio.Group>
+        <div className='flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-10px pt-2px'>
+          {/* Horizontally scrollable category pills on mobile */}
+          <div className='overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-2px -mb-2px max-w-full'>
+            <Radio.Group
+              type='button'
+              size='small'
+              value={authFilter}
+              onChange={setAuthFilter}
+              className='whitespace-nowrap flex-shrink-0'
+            >
+              <Radio value='all'>All ({stats.total})</Radio>
+              <Radio value='sso'>SSO ({stats.ssoCount})</Radio>
+              <Radio value='console_login'>Console ({stats.consoleCount})</Radio>
+              <Radio value='assume_role'>Role ({stats.assumeRoleCount})</Radio>
+              <Radio value='static_key'>Key ({stats.staticKeyCount})</Radio>
+            </Radio.Group>
+          </div>
 
-          <div className='flex items-center gap-10px justify-end flex-wrap'>
+          <div className='flex items-center justify-between sm:justify-end gap-8px flex-shrink-0'>
             {/* View Mode Toggle: Tree vs Flat */}
             <Radio.Group
               type='button'
