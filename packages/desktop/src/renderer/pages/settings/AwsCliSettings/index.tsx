@@ -4,12 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Button,
   Card,
+  Dropdown,
   Input,
+  Menu,
   Message,
   Popconfirm,
   Radio,
@@ -80,6 +82,38 @@ export interface AwsProfileRow {
   children?: AwsProfileRow[];
 }
 
+function formatAccountId(id?: string | null): string {
+  if (!id) return '';
+  const clean = id.trim();
+  if (/^\d{12}$/.test(clean)) {
+    return `${clean.slice(0, 4)}-${clean.slice(4, 8)}-${clean.slice(8, 12)}`;
+  }
+  return clean;
+}
+
+function renderRoleTag(roleName?: string | null) {
+  if (!roleName) return null;
+  const lower = roleName.toLowerCase();
+  let color = 'gray';
+  if (lower.includes('admin') || lower.includes('root')) {
+    color = 'orangered';
+  } else if (
+    lower.includes('read') ||
+    lower.includes('ro') ||
+    lower.includes('view') ||
+    lower.includes('audit')
+  ) {
+    color = 'green';
+  } else if (lower.includes('rw') || lower.includes('write') || lower.includes('dev')) {
+    color = 'arcoblue';
+  }
+  return (
+    <Tag size='small' color={color} className='text-10px font-normal max-w-180px truncate'>
+      {roleName}
+    </Tag>
+  );
+}
+
 const AwsCliSettings: React.FC = () => {
   const { t } = useTranslation();
   const [runtimeInfo, setRuntimeInfo] = useState<AwsRuntimeInfo | null>(null);
@@ -89,6 +123,7 @@ const AwsCliSettings: React.FC = () => {
   const [authFilter, setAuthFilter] = useState('all');
   const [viewMode, setViewMode] = useState<'tree' | 'flat'>('tree');
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
+  const hasInitializedExpand = useRef(false);
 
   // Modal states
   const [loginModalVisible, setLoginModalVisible] = useState(false);
@@ -103,6 +138,8 @@ const AwsCliSettings: React.FC = () => {
 
   // Per-row identity testing spinners
   const [testingRow, setTestingRow] = useState<Record<string, boolean>>({});
+  // Per-group batch testing spinners: groupKey -> { current: number, total: number }
+  const [testingBatch, setTestingBatch] = useState<Record<string, { current: number; total: number }>>({});
 
   const loadData = async () => {
     setLoading(true);
@@ -197,6 +234,66 @@ const AwsCliSettings: React.FC = () => {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       Message.error(msg);
+    }
+  };
+
+  const handleBatchTest = async (groupKey: string, profileNames: string[]) => {
+    if (profileNames.length === 0) return;
+    setTestingBatch((prev) => ({ ...prev, [groupKey]: { current: 0, total: profileNames.length } }));
+
+    let successCount = 0;
+    let failCount = 0;
+    for (let i = 0; i < profileNames.length; i++) {
+      const name = profileNames[i];
+      try {
+        const res = await awsCliService.testIdentity(name);
+        setProfiles((prev) =>
+          prev.map((p) => {
+            if (p.name === name) {
+              return {
+                ...p,
+                status: res.status as AwsProfileSummary['status'],
+                identity: res.identity,
+                error_message: res.error_message,
+                last_checked: new Date().toISOString(),
+              };
+            }
+            return p;
+          })
+        );
+        if (res.status === 'valid') successCount++;
+        else failCount++;
+      } catch (e) {
+        console.warn(`Batch test error for ${name}:`, e);
+        failCount++;
+      }
+      setTestingBatch((prev) => ({
+        ...prev,
+        [groupKey]: { current: i + 1, total: profileNames.length },
+      }));
+    }
+
+    setTestingBatch((prev) => {
+      const next = { ...prev };
+      delete next[groupKey];
+      return next;
+    });
+
+    if (failCount === 0) {
+      Message.success(
+        t('settings.awsBatchTestSuccess', {
+          defaultValue: `Validated all ${successCount} profiles successfully`,
+          count: successCount,
+        })
+      );
+    } else {
+      Message.info(
+        t('settings.awsBatchTestPartial', {
+          defaultValue: `Batch check finished: ${successCount} valid, ${failCount} need attention`,
+          success: successCount,
+          failed: failCount,
+        })
+      );
     }
   };
 
@@ -443,12 +540,24 @@ const AwsCliSettings: React.FC = () => {
     [treeData]
   );
 
-  // Auto-expand groups when search is active or first loaded
+  // Auto-expand groups when search is active; default collapsed on load for >10 profiles
   useEffect(() => {
-    if (viewMode === 'tree') {
+    if (viewMode !== 'tree' || allGroupKeys.length === 0) return;
+
+    if (!hasInitializedExpand.current) {
+      hasInitializedExpand.current = true;
+      if (profiles.length > 10) {
+        setExpandedKeys([]);
+      } else {
+        setExpandedKeys(allGroupKeys);
+      }
+      return;
+    }
+
+    if (searchQuery.trim().length > 0) {
       setExpandedKeys(allGroupKeys);
     }
-  }, [searchQuery, viewMode, allGroupKeys]);
+  }, [searchQuery, viewMode, allGroupKeys, profiles.length]);
 
   const isAllExpanded = expandedKeys.length >= allGroupKeys.length && allGroupKeys.length > 0;
 
@@ -535,48 +644,82 @@ const AwsCliSettings: React.FC = () => {
     {
       title: t('settings.awsProfileName', { defaultValue: 'Profile / Session' }),
       dataIndex: 'name',
-      width: 270,
+      width: 290,
+      fixed: 'left' as const,
       render: (_: unknown, record: AwsProfileRow) => {
         if (record.isGroup) {
           return (
-            <div className='flex items-center gap-8px font-semibold text-13px text-t-primary whitespace-nowrap'>
+            <div className='flex items-center gap-8px font-semibold text-13px text-t-primary min-w-0 pr-6px'>
               {record.groupType === 'sso' ? (
                 <LinkCloud className='text-primary text-16px flex-shrink-0' />
               ) : (
                 <Connection className='text-primary text-16px flex-shrink-0' />
               )}
-              <span>{record.groupLabel || record.name}</span>
-              <Tag size='small' color='arcoblue' className='font-normal'>
+              <span className='truncate' title={record.groupLabel || record.name}>
+                {record.groupLabel || record.name}
+              </span>
+              <Tag size='small' color='arcoblue' className='font-normal flex-shrink-0'>
                 {record.profileCount} {record.profileCount === 1 ? 'profile' : 'profiles'}
               </Tag>
             </div>
           );
         }
 
+        const copyMenu = (
+          <Menu>
+            <Menu.Item key='copy-name' onClick={() => handleCopy(record.name, 'Profile name')}>
+              Copy Name ({record.name})
+            </Menu.Item>
+            <Menu.Item
+              key='copy-export'
+              onClick={() => handleCopy(`export AWS_PROFILE="${record.name}"`, 'Export command')}
+            >
+              Copy export AWS_PROFILE=&quot;{record.name}&quot;
+            </Menu.Item>
+            <Menu.Item
+              key='copy-cmd'
+              onClick={() =>
+                handleCopy(
+                  `aws sts get-caller-identity --profile "${record.name}"`,
+                  'AWS CLI command'
+                )
+              }
+            >
+              Copy aws sts command
+            </Menu.Item>
+          </Menu>
+        );
+
         return (
-          <div className='flex items-center gap-6px pl-6px whitespace-nowrap'>
-            <span className='font-medium text-13px'>{record.name}</span>
+          <div className='flex items-center gap-6px pl-6px min-w-0 pr-6px overflow-hidden'>
+            <div className='min-w-0 flex-1 overflow-hidden'>
+              <Tooltip content={record.name}>
+                <span className='font-medium text-13px truncate block select-all' title={record.name}>
+                  {record.name}
+                </span>
+              </Tooltip>
+            </div>
             {record.name === 'default' && (
-              <Tag size='small' color='blue'>
+              <Tag size='small' color='blue' className='flex-shrink-0'>
                 default
               </Tag>
             )}
-            <Tooltip content='Copy profile name'>
+            <Dropdown droplist={copyMenu} trigger={['click', 'hover']} position='bottom'>
               <button
                 type='button'
-                onClick={() => handleCopy(record.name, 'Profile name')}
-                className='text-t-secondary hover:text-primary cursor-pointer p-2px transition-colors border-none bg-transparent'
+                className='text-t-secondary hover:text-primary cursor-pointer p-2px transition-colors border-none bg-transparent flex-shrink-0'
+                title='Copy profile name or export snippet'
               >
                 <Copy />
               </button>
-            </Tooltip>
+            </Dropdown>
           </div>
         );
       },
     },
     {
       title: t('settings.awsAuthMethod', { defaultValue: 'Auth Method' }),
-      width: 130,
+      width: 105,
       render: (_: unknown, record: AwsProfileRow) => {
         if (record.isGroup) {
           switch (record.groupType) {
@@ -597,7 +740,7 @@ const AwsCliSettings: React.FC = () => {
     },
     {
       title: t('settings.awsRegion', { defaultValue: 'Region' }),
-      width: 130,
+      width: 105,
       render: (_: unknown, record: AwsProfileRow) => {
         if (record.isGroup) {
           return record.region ? (
@@ -613,7 +756,7 @@ const AwsCliSettings: React.FC = () => {
     },
     {
       title: t('settings.awsTargetAccountRole', { defaultValue: 'Account / Target' }),
-      width: 230,
+      width: 200,
       render: (_: unknown, record: AwsProfileRow) => {
         if (record.isGroup) {
           if (record.groupType === 'sso' && record.sso_start_url) {
@@ -631,19 +774,34 @@ const AwsCliSettings: React.FC = () => {
 
         if (record.auth_method === 'sso') {
           return (
-            <div className='flex flex-col text-12px whitespace-nowrap'>
+            <div className='flex flex-col text-12px min-w-0 pr-4px'>
               {record.sso_account_id && (
-                <span className='font-mono text-t-primary'>{record.sso_account_id}</span>
+                <div className='flex items-center gap-4px'>
+                  <span className='font-mono text-t-primary font-medium tracking-tight'>
+                    {formatAccountId(record.sso_account_id)}
+                  </span>
+                  <Tooltip content='Copy Account ID'>
+                    <button
+                      type='button'
+                      onClick={() => handleCopy(record.sso_account_id!, 'Account ID')}
+                      className='text-t-tertiary hover:text-primary cursor-pointer p-1px transition-colors border-none bg-transparent'
+                    >
+                      <Copy size={12} />
+                    </button>
+                  </Tooltip>
+                </div>
               )}
               {record.sso_role_name && (
-                <span className='text-t-secondary text-11px'>{record.sso_role_name}</span>
+                <div className='mt-2px'>
+                  {renderRoleTag(record.sso_role_name)}
+                </div>
               )}
             </div>
           );
         }
         if (record.auth_method === 'console_login') {
           return (
-            <div className='flex flex-col text-12px whitespace-nowrap'>
+            <div className='flex flex-col text-12px min-w-0 pr-4px'>
               <span
                 className='text-t-secondary font-mono truncate max-w-220px block'
                 title={record.login_session || ''}
@@ -655,9 +813,9 @@ const AwsCliSettings: React.FC = () => {
         }
         if (record.auth_method === 'assume_role') {
           return (
-            <div className='flex flex-col text-12px whitespace-nowrap'>
+            <div className='flex flex-col text-12px min-w-0 pr-4px'>
               <span
-                className='font-mono text-t-primary truncate max-w-220px block'
+                className='font-mono text-t-primary truncate max-w-220px block text-11px'
                 title={record.role_arn || ''}
               >
                 {record.role_arn || '—'}
@@ -680,7 +838,7 @@ const AwsCliSettings: React.FC = () => {
     },
     {
       title: t('settings.awsCallerIdentity', { defaultValue: 'Caller Identity' }),
-      width: 130,
+      width: 110,
       render: (_: unknown, record: AwsProfileRow) => {
         if (record.isGroup) {
           const validCount = record.children?.filter((c) => c.status === 'valid').length ?? 0;
@@ -699,34 +857,50 @@ const AwsCliSettings: React.FC = () => {
     },
     {
       title: t('common.actions', { defaultValue: 'Actions' }),
-      width: 220,
+      width: 190,
+      fixed: 'right' as const,
       render: (_: unknown, record: AwsProfileRow) => {
         if (record.isGroup) {
           const isSso = record.groupType === 'sso';
           const rep = record.profile;
-          if (!isSso || !rep) {
-            return null;
-          }
+          const childProfiles = record.children?.map((c) => c.name) || [];
+          const isBatchTesting = testingBatch[record.key];
           return (
-            <Space size='mini'>
-              <Button
-                size='mini'
-                type='primary'
-                icon={<Login />}
-                onClick={() => {
-                  setLoginProfile(rep);
-                  setLoginSessionTitle(record.groupLabel || record.name);
-                  setLoginModalVisible(true);
-                }}
-              >
-                {t('settings.awsLoginSession', { defaultValue: 'Login Session' })}
-              </Button>
-            </Space>
+            <div className='flex items-center gap-6px flex-nowrap whitespace-nowrap'>
+              {isSso && rep && (
+                <Button
+                  size='mini'
+                  type='primary'
+                  icon={<Login />}
+                  onClick={() => {
+                    setLoginProfile(rep);
+                    setLoginSessionTitle(record.groupLabel || record.name);
+                    setLoginModalVisible(true);
+                  }}
+                >
+                  {t('settings.awsLoginSession', { defaultValue: 'Login Session' })}
+                </Button>
+              )}
+              {childProfiles.length > 0 && (
+                <Button
+                  size='mini'
+                  loading={Boolean(isBatchTesting)}
+                  onClick={() => handleBatchTest(record.key, childProfiles)}
+                >
+                  {isBatchTesting
+                    ? `${isBatchTesting.current}/${isBatchTesting.total}`
+                    : t('settings.awsTestAll', { defaultValue: 'Test All' })}
+                </Button>
+              )}
+            </div>
           );
         }
 
+        const isChildOfSso = record.auth_method === 'sso';
+        const isConsole = record.auth_method === 'console_login';
+
         return (
-          <Space size='mini'>
+          <div className='flex items-center gap-4px flex-nowrap whitespace-nowrap'>
             <Button
               size='mini'
               loading={testingRow[record.name]}
@@ -735,7 +909,7 @@ const AwsCliSettings: React.FC = () => {
               {t('settings.awsTestIdentity', { defaultValue: 'Test' })}
             </Button>
 
-            {(record.auth_method === 'sso' || record.auth_method === 'console_login') && (
+            {isConsole && (
               <Button
                 size='mini'
                 type='primary'
@@ -750,14 +924,32 @@ const AwsCliSettings: React.FC = () => {
               </Button>
             )}
 
-            <Button
-              size='mini'
-              icon={<Edit />}
-              onClick={() => {
-                setEditingProfile(record.profile!);
-                setProfileModalVisible(true);
-              }}
-            />
+            {isChildOfSso && record.status === 'expired' && (
+              <Button
+                size='mini'
+                type='outline'
+                status='warning'
+                icon={<Login />}
+                onClick={() => {
+                  setLoginProfile(record.profile!);
+                  setLoginSessionTitle(null);
+                  setLoginModalVisible(true);
+                }}
+              >
+                {t('settings.awsRenew', { defaultValue: 'Renew' })}
+              </Button>
+            )}
+
+            <Tooltip content={t('common.edit', { defaultValue: 'Edit Profile' })}>
+              <Button
+                size='mini'
+                icon={<Edit />}
+                onClick={() => {
+                  setEditingProfile(record.profile!);
+                  setProfileModalVisible(true);
+                }}
+              />
+            </Tooltip>
 
             <Popconfirm
               title={t('settings.awsDeleteConfirmTitle', { defaultValue: 'Delete Profile?' })}
@@ -770,16 +962,18 @@ const AwsCliSettings: React.FC = () => {
               okButtonProps={{ status: 'danger' }}
               onOk={() => handleDeleteProfile(record.name)}
             >
-              <Button size='mini' status='danger' icon={<Delete />} />
+              <Tooltip content={t('common.delete', { defaultValue: 'Delete Profile' })}>
+                <Button size='mini' status='danger' icon={<Delete />} />
+              </Tooltip>
             </Popconfirm>
-          </Space>
+          </div>
         );
       },
     },
   ];
 
   return (
-    <SettingsPageWrapper contentClassName='max-w-1200px'>
+    <SettingsPageWrapper contentClassName='md:max-w-1280px'>
       <div className='flex flex-col gap-16px'>
         <SettingsPageHeader
           data-testid='aws-cli-header'
@@ -811,22 +1005,22 @@ const AwsCliSettings: React.FC = () => {
         />
 
         {/* Summary metric cards */}
-        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12px'>
+        <div className='grid grid-cols-2 lg:grid-cols-4 gap-8px sm:gap-12px'>
           <Card size='small' className='border border-[var(--color-border-2)] rounded-8px shadow-xs'>
-            <div className='flex flex-col gap-4px'>
-              <span className='text-12px text-t-secondary'>AWS CLI Status</span>
-              <div className='flex items-center gap-8px mt-2px'>
+            <div className='flex flex-col gap-2px sm:gap-4px'>
+              <span className='text-11px sm:text-12px text-t-secondary truncate'>AWS CLI Status</span>
+              <div className='flex items-center gap-6px sm:gap-8px mt-2px'>
                 {runtimeInfo?.installed ? (
-                  <Tag color='green' icon={<CheckOne />}>
+                  <Tag color='green' size='small' icon={<CheckOne />}>
                     Installed
                   </Tag>
                 ) : (
-                  <Tag color='red' icon={<Close />}>
+                  <Tag color='red' size='small' icon={<Close />}>
                     Not Installed
                   </Tag>
                 )}
                 <span
-                  className='text-12px font-mono text-t-secondary truncate'
+                  className='text-11px sm:text-12px font-mono text-t-secondary truncate'
                   title={runtimeInfo?.version || ''}
                 >
                   {runtimeInfo?.version?.split(' ')[0] || ''}
@@ -836,24 +1030,24 @@ const AwsCliSettings: React.FC = () => {
           </Card>
 
           <Card size='small' className='border border-[var(--color-border-2)] rounded-8px shadow-xs'>
-            <div className='flex flex-col gap-4px'>
-              <span className='text-12px text-t-secondary'>Runtime Host</span>
-              <div className='flex items-center gap-6px mt-2px'>
-                <Tag color='arcoblue' icon={<Shield />}>
+            <div className='flex flex-col gap-2px sm:gap-4px'>
+              <span className='text-11px sm:text-12px text-t-secondary truncate'>Runtime Host</span>
+              <div className='flex items-center gap-4px sm:gap-6px mt-2px'>
+                <Tag color='arcoblue' size='small' icon={<Shield />}>
                   {runtimeInfo?.user || 'aionui'}
                 </Tag>
-                <span className='text-12px text-t-secondary'>Linux aarch64</span>
+                <span className='text-11px sm:text-12px text-t-secondary truncate'>Linux aarch64</span>
               </div>
             </div>
           </Card>
 
           <Card size='small' className='border border-[var(--color-border-2)] rounded-8px shadow-xs'>
-            <div className='flex flex-col gap-4px'>
-              <span className='text-12px text-t-secondary'>Configuration Path</span>
-              <div className='flex items-center gap-6px mt-2px'>
+            <div className='flex flex-col gap-2px sm:gap-4px'>
+              <span className='text-11px sm:text-12px text-t-secondary truncate'>Configuration Path</span>
+              <div className='flex items-center gap-4px sm:gap-6px mt-2px min-w-0'>
                 <FolderOpen className='text-primary flex-shrink-0' />
                 <span
-                  className='text-12px font-mono text-t-secondary truncate'
+                  className='text-11px sm:text-12px font-mono text-t-secondary truncate'
                   title={runtimeInfo?.config_path || '~/.aws/config'}
                 >
                   {runtimeInfo?.config_path || '~/.aws/config'}
@@ -863,11 +1057,11 @@ const AwsCliSettings: React.FC = () => {
           </Card>
 
           <Card size='small' className='border border-[var(--color-border-2)] rounded-8px shadow-xs'>
-            <div className='flex flex-col gap-4px'>
-              <span className='text-12px text-t-secondary'>Active Profiles</span>
-              <div className='flex items-center justify-between mt-2px'>
-                <span className='text-18px font-bold text-t-primary'>{stats.total}</span>
-                <Space size='mini'>
+            <div className='flex flex-col gap-2px sm:gap-4px'>
+              <span className='text-11px sm:text-12px text-t-secondary truncate'>Active Profiles</span>
+              <div className='flex items-center justify-between mt-2px gap-4px flex-wrap'>
+                <span className='text-16px sm:text-18px font-bold text-t-primary'>{stats.total}</span>
+                <Space size={4}>
                   <Tag size='small' color='arcoblue'>
                     SSO: {stats.ssoCount}
                   </Tag>
@@ -989,7 +1183,7 @@ const AwsCliSettings: React.FC = () => {
             onExpandedRowsChange={
               viewMode === 'tree' ? (keys) => setExpandedKeys(keys as string[]) : undefined
             }
-            indentSize={22}
+            indentSize={20}
             pagination={
               viewMode === 'flat'
                 ? {
@@ -999,7 +1193,7 @@ const AwsCliSettings: React.FC = () => {
                   }
                 : false
             }
-            scroll={{ x: 1100 }}
+            scroll={{ x: 1000 }}
           />
         </div>
 
