@@ -860,7 +860,7 @@ const AwsCliSettings: React.FC = () => {
     },
     {
       title: t('common.actions', { defaultValue: 'Actions' }),
-      width: isMobile ? 180 : 190,
+      width: 200,
       fixed: 'right' as const,
       render: (_: unknown, record: AwsProfileRow) => {
         if (record.isGroup) {
@@ -1196,7 +1196,7 @@ const AwsCliSettings: React.FC = () => {
                   }
                 : false
             }
-            scroll={{ x: isMobile ? 940 : 1000 }}
+            scroll={{ x: isMobile ? 960 : 1000 }}
           />
         </div>
 
