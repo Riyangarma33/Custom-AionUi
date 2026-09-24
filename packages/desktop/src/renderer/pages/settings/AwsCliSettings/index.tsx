@@ -41,6 +41,7 @@ import {
   TreeList,
 } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
+import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import SettingsPageHeader from '../components/SettingsPageHeader';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import {
@@ -116,6 +117,8 @@ function renderRoleTag(roleName?: string | null) {
 
 const AwsCliSettings: React.FC = () => {
   const { t } = useTranslation();
+  const layout = useLayoutContext();
+  const isMobile = Boolean(layout?.isMobile);
   const [runtimeInfo, setRuntimeInfo] = useState<AwsRuntimeInfo | null>(null);
   const [profiles, setProfiles] = useState<AwsProfileSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -644,8 +647,8 @@ const AwsCliSettings: React.FC = () => {
     {
       title: t('settings.awsProfileName', { defaultValue: 'Profile / Session' }),
       dataIndex: 'name',
-      width: 290,
-      fixed: 'left' as const,
+      width: isMobile ? 240 : 290,
+      fixed: isMobile ? undefined : ('left' as const),
       render: (_: unknown, record: AwsProfileRow) => {
         if (record.isGroup) {
           return (
@@ -857,7 +860,7 @@ const AwsCliSettings: React.FC = () => {
     },
     {
       title: t('common.actions', { defaultValue: 'Actions' }),
-      width: 190,
+      width: isMobile ? 180 : 190,
       fixed: 'right' as const,
       render: (_: unknown, record: AwsProfileRow) => {
         if (record.isGroup) {
@@ -1193,7 +1196,7 @@ const AwsCliSettings: React.FC = () => {
                   }
                 : false
             }
-            scroll={{ x: 1000 }}
+            scroll={{ x: isMobile ? 940 : 1000 }}
           />
         </div>
 
