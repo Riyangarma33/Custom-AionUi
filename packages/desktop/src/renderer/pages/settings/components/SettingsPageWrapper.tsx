@@ -27,6 +27,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
 import { BUILTIN_TAB_IDS, LEGACY_ANCHOR_REMAP } from './SettingsSider';
+import AwsIcon from '@/renderer/components/base/AwsIcon';
 import './settings.css';
 
 interface SettingsPageWrapperProps {
@@ -69,7 +70,7 @@ export function getBuiltinSettingsNavItems(isDesktop: boolean, t: TranslateFn): 
     'aws-cli': {
       id: 'aws-cli',
       label: t('settings.awsCli', { defaultValue: 'AWS CLI' }),
-      icon: <Connection theme='outline' size='16' />,
+      icon: <AwsIcon size='16' />,
       path: 'aws-cli',
     },
     appearance: {

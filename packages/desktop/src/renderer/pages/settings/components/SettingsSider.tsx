@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Tooltip } from '@arco-design/web-react';
 import { getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
+import AwsIcon from '@/renderer/components/base/AwsIcon';
 
 /** Builtin settings tab IDs in display order (must match router paths). */
 export const BUILTIN_TAB_IDS = [
@@ -110,7 +111,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       'aws-cli': {
         id: 'aws-cli',
         label: t('settings.awsCli', { defaultValue: 'AWS CLI' }),
-        icon: <Connection />,
+        icon: <AwsIcon />,
         path: 'aws-cli',
       },
       appearance: { id: 'appearance', label: t('settings.appearancePanel'), icon: <Computer />, path: 'appearance' },
