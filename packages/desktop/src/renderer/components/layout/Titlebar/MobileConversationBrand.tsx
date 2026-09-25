@@ -98,8 +98,10 @@ const MobileConversationBrand: React.FC<MobileConversationBrandProps> = ({ conve
   const showLogo = Boolean(backend || presetAssistant);
 
   const isSubmittingRef = useRef(false);
+  const isCancellingRef = useRef(false);
 
   const handleSubmit = async () => {
+    if (isCancellingRef.current || isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     try {
       await submitTitleRename();
@@ -109,7 +111,7 @@ const MobileConversationBrand: React.FC<MobileConversationBrandProps> = ({ conve
   };
 
   const handleCancel = () => {
-    if (isSubmittingRef.current) return;
+    isCancellingRef.current = true;
     setTitleDraft(typeof title === 'string' ? title : '');
     setEditingTitle(false);
   };
@@ -119,6 +121,8 @@ const MobileConversationBrand: React.FC<MobileConversationBrandProps> = ({ conve
 
   const startEditing = () => {
     if (!canRenameTitle) return;
+    isCancellingRef.current = false;
+    isSubmittingRef.current = false;
     setEditingTitle(true);
   };
 
@@ -156,11 +160,15 @@ const MobileConversationBrand: React.FC<MobileConversationBrandProps> = ({ conve
   }
 
   return (
-    <span
+    <form
       className={classNames(
         'app-titlebar__brand-mobile',
         'app-titlebar__brand-mobile--editing'
       )}
+      onSubmit={(e) => {
+        e.preventDefault();
+        void handleSubmit();
+      }}
     >
       {showLogo && (
         <AgentLogoIcon
@@ -178,6 +186,7 @@ const MobileConversationBrand: React.FC<MobileConversationBrandProps> = ({ conve
         className='app-titlebar__brand-input'
         style={{ width: '100%', maxWidth: '100%' }}
         maxLength={120}
+        enterKeyHint='done'
         onChange={setTitleDraft}
         onFocus={(event) => {
           event.target.select();
@@ -186,7 +195,7 @@ const MobileConversationBrand: React.FC<MobileConversationBrandProps> = ({ conve
           void handleSubmit();
         }}
         onBlur={() => {
-          handleCancel();
+          void handleSubmit();
         }}
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
@@ -196,7 +205,7 @@ const MobileConversationBrand: React.FC<MobileConversationBrandProps> = ({ conve
         placeholder={t('conversation.history.renamePlaceholder')}
         size='small'
       />
-    </span>
+    </form>
   );
 };
 

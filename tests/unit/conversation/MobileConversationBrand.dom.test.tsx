@@ -138,8 +138,9 @@ describe('MobileConversationBrand', () => {
     });
   });
 
-  it('verifies tap-outside/blur cancellation reverts draft without submitting', async () => {
+  it('verifies tap-outside/blur submits draft and updates title', async () => {
     conversationGetMock.mockResolvedValue({ id: 'conv-1', name: 'Project Alpha' });
+    conversationUpdateMock.mockResolvedValue(true);
 
     renderComponent({ conversation_id: 'conv-1', fallbackTitle: 'Fallback Alpha' });
 
@@ -150,15 +151,54 @@ describe('MobileConversationBrand', () => {
     fireEvent.click(screen.getByTestId('mobile-conversation-brand-trigger'));
 
     const input = screen.getByRole('textbox');
-    fireEvent.change(input, { target: { value: 'Unfinished Typo' } });
+    fireEvent.change(input, { target: { value: 'Updated Title' } });
 
     // Tap outside (blur)
     fireEvent.blur(input);
 
-    expect(conversationUpdateMock).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(conversationUpdateMock).toHaveBeenCalledWith({
+        id: 'conv-1',
+        updates: { name: 'Updated Title' },
+      });
+    });
+
     await waitFor(() => {
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+      expect(screen.getByText('Updated Title')).toBeInTheDocument();
+    });
+  });
+
+  it('verifies form submit applies rename and has enterKeyHint="done"', async () => {
+    conversationGetMock.mockResolvedValue({ id: 'conv-1', name: 'Project Alpha' });
+    conversationUpdateMock.mockResolvedValue(true);
+
+    renderComponent({ conversation_id: 'conv-1', fallbackTitle: 'Fallback Alpha' });
+
+    await waitFor(() => {
       expect(screen.getByText('Project Alpha')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('mobile-conversation-brand-trigger'));
+
+    const input = screen.getByRole('textbox');
+    expect(input).toHaveAttribute('enterkeyhint', 'done');
+
+    fireEvent.change(input, { target: { value: 'Form Submitted Title' } });
+    const form = input.closest('form');
+    expect(form).not.toBeNull();
+    fireEvent.submit(form!);
+
+    await waitFor(() => {
+      expect(conversationUpdateMock).toHaveBeenCalledWith({
+        id: 'conv-1',
+        updates: { name: 'Form Submitted Title' },
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+      expect(screen.getByText('Form Submitted Title')).toBeInTheDocument();
     });
   });
 
