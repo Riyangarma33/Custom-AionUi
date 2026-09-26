@@ -647,22 +647,24 @@ const AwsCliSettings: React.FC = () => {
     {
       title: t('settings.awsProfileName', { defaultValue: 'Profile / Session' }),
       dataIndex: 'name',
-      width: isMobile ? 240 : 290,
+      width: isMobile ? 210 : 290,
       fixed: isMobile ? undefined : ('left' as const),
       render: (_: unknown, record: AwsProfileRow) => {
         if (record.isGroup) {
           return (
-            <div className='flex items-center gap-8px font-semibold text-13px text-t-primary min-w-0 pr-6px'>
+            <div className='flex items-center gap-6px font-semibold text-13px text-t-primary min-w-0 pr-4px'>
               {record.groupType === 'sso' ? (
-                <LinkCloud className='text-primary text-16px flex-shrink-0' />
+                <LinkCloud className='text-primary text-15px flex-shrink-0' />
               ) : (
-                <Connection className='text-primary text-16px flex-shrink-0' />
+                <Connection className='text-primary text-15px flex-shrink-0' />
               )}
               <span className='truncate' title={record.groupLabel || record.name}>
                 {record.groupLabel || record.name}
               </span>
-              <Tag size='small' color='arcoblue' className='font-normal flex-shrink-0'>
-                {record.profileCount} {record.profileCount === 1 ? 'profile' : 'profiles'}
+              <Tag size='small' color='arcoblue' className='font-normal flex-shrink-0 text-11px px-4px'>
+                {isMobile
+                  ? record.profileCount
+                  : `${record.profileCount} ${record.profileCount === 1 ? 'profile' : 'profiles'}`}
               </Tag>
             </div>
           );
@@ -860,7 +862,7 @@ const AwsCliSettings: React.FC = () => {
     },
     {
       title: t('common.actions', { defaultValue: 'Actions' }),
-      width: 200,
+      width: isMobile ? 155 : 200,
       fixed: 'right' as const,
       render: (_: unknown, record: AwsProfileRow) => {
         if (record.isGroup) {
@@ -881,7 +883,7 @@ const AwsCliSettings: React.FC = () => {
                     setLoginModalVisible(true);
                   }}
                 >
-                  {t('settings.awsLoginSession', { defaultValue: 'Login Session' })}
+                  {isMobile ? 'Login' : t('settings.awsLoginSession', { defaultValue: 'Login Session' })}
                 </Button>
               )}
               {childProfiles.length > 0 && (
@@ -1196,7 +1198,7 @@ const AwsCliSettings: React.FC = () => {
                   }
                 : false
             }
-            scroll={{ x: isMobile ? 960 : 1000 }}
+            scroll={{ x: isMobile ? 880 : 1000 }}
           />
         </div>
 

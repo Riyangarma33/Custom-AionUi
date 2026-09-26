@@ -147,12 +147,22 @@ export const AwsLoginModal: React.FC<AwsLoginModalProps> = ({
   return (
     <Modal
       title={
-        <div className='flex items-center gap-8px'>
-          <Refresh className={isJobActive ? 'animate-spin text-primary' : ''} />
-          <span>
+        <div
+          className='flex items-center gap-8px overflow-hidden'
+          style={{ maxWidth: 'calc(min(100vw - 24px, 560px) - 96px)' }}
+        >
+          <Refresh className={isJobActive ? 'animate-spin text-primary shrink-0' : 'shrink-0'} />
+          <span
+            className='min-w-0 flex-1 truncate block text-14px font-medium'
+            title={
+              sessionTitle
+                ? `${t('settings.awsLoginSessionTitle', { defaultValue: 'AWS SSO Login' })} — ${sessionTitle}`
+                : `${t('settings.awsLoginTitle', { defaultValue: 'AWS Login' })} — ${profile?.name}`
+            }
+          >
             {sessionTitle
-              ? `${t('settings.awsLoginSessionTitle', { defaultValue: 'AWS SSO Session Login' })} — ${sessionTitle}`
-              : `${t('settings.awsLoginTitle', { defaultValue: 'AWS CLI Interactive Login' })} — ${profile?.name}`}
+              ? `${t('settings.awsLoginSessionTitle', { defaultValue: 'AWS SSO Login' })} — ${sessionTitle}`
+              : `${t('settings.awsLoginTitle', { defaultValue: 'AWS Login' })} — ${profile?.name}`}
           </span>
         </div>
       }
@@ -164,7 +174,7 @@ export const AwsLoginModal: React.FC<AwsLoginModalProps> = ({
         onClose();
       }}
       footer={
-        <div className='flex justify-between items-center w-full'>
+        <div className='flex justify-between items-center w-full gap-8px flex-wrap'>
           <div>
             {isJobActive && (
               <Button
@@ -193,7 +203,7 @@ export const AwsLoginModal: React.FC<AwsLoginModalProps> = ({
           </Space>
         </div>
       }
-      style={{ maxWidth: 560 }}
+      style={{ width: 'calc(100vw - 24px)', maxWidth: 560 }}
     >
       <div className='flex flex-col gap-16px py-8px'>
         {loading && !job && (
@@ -221,11 +231,11 @@ export const AwsLoginModal: React.FC<AwsLoginModalProps> = ({
                 <Typography.Text type='secondary' className='text-12px'>
                   1. {t('settings.awsVerificationUrl', { defaultValue: 'Verification URL' })}:
                 </Typography.Text>
-                <div className='flex items-center gap-8px p-10px rounded-6px bg-[var(--color-fill-2)] border border-[var(--color-border-2)]'>
-                  <span className='text-13px font-mono break-all select-all flex-1 text-primary'>
+                <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-8px p-10px rounded-6px bg-[var(--color-fill-2)] border border-[var(--color-border-2)]'>
+                  <span className='text-12px sm:text-13px font-mono break-all select-all flex-1 text-primary'>
                     {job.verification_uri}
                   </span>
-                  <Space size='mini'>
+                  <Space size='mini' className='self-end sm:self-auto shrink-0'>
                     <Button
                       size='mini'
                       icon={<Copy />}
@@ -251,14 +261,15 @@ export const AwsLoginModal: React.FC<AwsLoginModalProps> = ({
                 <Typography.Text type='secondary' className='text-12px'>
                   2. {t('settings.awsUserCode', { defaultValue: 'Confirmation Code' })}:
                 </Typography.Text>
-                <div className='flex items-center justify-between p-12px rounded-6px bg-[var(--color-fill-2)] border border-[var(--color-border-2)]'>
-                  <span className='text-22px font-bold font-mono tracking-wider select-all text-primary'>
+                <div className='flex items-center justify-between gap-8px p-10px sm:p-12px rounded-6px bg-[var(--color-fill-2)] border border-[var(--color-border-2)]'>
+                  <span className='text-18px sm:text-22px font-bold font-mono tracking-wider select-all text-primary truncate'>
                     {job.user_code}
                   </span>
                   <Button
                     size='small'
                     icon={<Copy />}
                     onClick={() => handleCopy(job.user_code!, 'Code')}
+                    className='shrink-0'
                   >
                     {t('settings.copyCode', { defaultValue: 'Copy Code' })}
                   </Button>

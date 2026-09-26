@@ -152,9 +152,23 @@ export const AwsProfileModal: React.FC<AwsProfileModalProps> = ({
   return (
     <Modal
       title={
-        profile
-          ? `${t('settings.awsEditProfile', { defaultValue: 'Edit Profile' })}: ${profile.name}`
-          : t('settings.awsAddProfile', { defaultValue: 'Add AWS CLI Profile' })
+        <div
+          className='overflow-hidden'
+          style={{ maxWidth: 'calc(min(100vw - 24px, 580px) - 96px)' }}
+        >
+          <span
+            className='truncate block text-14px font-medium'
+            title={
+              profile
+                ? `${t('settings.awsEditProfile', { defaultValue: 'Edit Profile' })}: ${profile.name}`
+                : t('settings.awsAddProfile', { defaultValue: 'Add AWS CLI Profile' })
+            }
+          >
+            {profile
+              ? `${t('settings.awsEditProfile', { defaultValue: 'Edit Profile' })}: ${profile.name}`
+              : t('settings.awsAddProfile', { defaultValue: 'Add AWS CLI Profile' })}
+          </span>
+        </div>
       }
       visible={visible}
       onCancel={onClose}
@@ -162,7 +176,7 @@ export const AwsProfileModal: React.FC<AwsProfileModalProps> = ({
       okButtonProps={{ loading: saving }}
       okText={t('common.save', { defaultValue: 'Save Profile' })}
       cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
-      style={{ maxWidth: 580 }}
+      style={{ width: 'calc(100vw - 24px)', maxWidth: 580 }}
     >
       <div className='flex flex-col gap-12px pt-8px'>
         <Alert

@@ -79,9 +79,23 @@ export const AwsSsoSessionModal: React.FC<AwsSsoSessionModalProps> = ({
   return (
     <Modal
       title={
-        session
-          ? `${t('settings.awsEditSsoSession', { defaultValue: 'Edit SSO Session' })}: ${session.name}`
-          : t('settings.awsAddSsoSession', { defaultValue: 'Add AWS SSO Session' })
+        <div
+          className='overflow-hidden'
+          style={{ maxWidth: 'calc(min(100vw - 24px, 540px) - 96px)' }}
+        >
+          <span
+            className='truncate block text-14px font-medium'
+            title={
+              session
+                ? `${t('settings.awsEditSsoSession', { defaultValue: 'Edit SSO Session' })}: ${session.name}`
+                : t('settings.awsAddSsoSession', { defaultValue: 'Add AWS SSO Session' })
+            }
+          >
+            {session
+              ? `${t('settings.awsEditSsoSession', { defaultValue: 'Edit SSO Session' })}: ${session.name}`
+              : t('settings.awsAddSsoSession', { defaultValue: 'Add AWS SSO Session' })}
+          </span>
+        </div>
       }
       visible={visible}
       onCancel={onClose}
@@ -89,7 +103,7 @@ export const AwsSsoSessionModal: React.FC<AwsSsoSessionModalProps> = ({
       okButtonProps={{ loading: saving }}
       okText={t('common.save', { defaultValue: 'Save Session' })}
       cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
-      style={{ maxWidth: 540 }}
+      style={{ width: 'calc(100vw - 24px)', maxWidth: 540 }}
     >
       <div className='flex flex-col gap-12px pt-8px'>
         <Alert
