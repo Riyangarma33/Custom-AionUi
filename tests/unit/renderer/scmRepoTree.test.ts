@@ -120,6 +120,58 @@ describe('groupRepositories', () => {
     const reversed = JSON.stringify(groupRepositories([...input].toReversed()));
     expect(forward).toEqual(reversed);
   });
+
+  it('nests a submodule under its parent when the parent is present', () => {
+    const groups = groupRepositories([
+      repo({ repo_id: 'scm:pe1', label: 'main-repo' }),
+      repo({ repo_id: 'scm:pe1/sub', label: 'sub', is_submodule: true, submodule_of: 'scm:pe1' }),
+    ]);
+    expect(groups).toHaveLength(1);
+    const p = primary(groups[0]);
+    expect(p.submodules).toHaveLength(1);
+    expect(p.submodules[0].repo.repo_id).toBe('scm:pe1/sub');
+    expect(p.submodules[0].kind).toBe('submodule');
+  });
+
+  it('recursively nests submodules to arbitrary depth (3 levels: root -> submodule -> nested submodule)', () => {
+    const groups = groupRepositories([
+      repo({ repo_id: 'scm:pe1', label: 'ms-ops' }),
+      repo({ repo_id: 'scm:pe1/aryanoble', label: 'aryanoble', is_submodule: true, submodule_of: 'scm:pe1' }),
+      repo({
+        repo_id: 'scm:pe1/aryanoble/infra/cis-dermies-dev',
+        label: 'infra/cis-dermies-dev',
+        is_submodule: true,
+        submodule_of: 'scm:pe1/aryanoble',
+      }),
+      repo({
+        repo_id: 'scm:pe1/aryanoble/infra/cis-dermies-dev-scaling',
+        label: 'infra/cis-dermies-dev-scaling',
+        is_submodule: true,
+        submodule_of: 'scm:pe1/aryanoble',
+      }),
+    ]);
+    expect(groups).toHaveLength(1);
+    const root = primary(groups[0]);
+    expect(root.repo.repo_id).toBe('scm:pe1');
+    expect(root.submodules).toHaveLength(1);
+
+    const aryanoble = root.submodules[0];
+    expect(aryanoble.repo.repo_id).toBe('scm:pe1/aryanoble');
+    expect(aryanoble.submodules).toHaveLength(2);
+    expect(aryanoble.submodules.map((s) => s.repo.label)).toEqual([
+      'infra/cis-dermies-dev',
+      'infra/cis-dermies-dev-scaling',
+    ]);
+  });
+
+  it('surfaces a submodule as orphanSubmodule when its parent is not in view', () => {
+    const groups = groupRepositories([
+      repo({ repo_id: 'scm:pe1/sub', label: 'orphan-sub', is_submodule: true, submodule_of: 'scm:missing' }),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].kind).toBe('orphanSubmodule');
+    expect(groups[0].repo.repo_id).toBe('scm:pe1/sub');
+  });
 });
 
 describe('expandableRepoIds', () => {
@@ -131,5 +183,19 @@ describe('expandableRepoIds', () => {
       repo({ repo_id: 'scm:x/o', label: 'orphan', is_worktree: true }),
     ]);
     expect(expandableRepoIds(groups)).toEqual(['scm:pe1']);
+  });
+
+  it('lists repositories that have nested submodules at any depth', () => {
+    const groups = groupRepositories([
+      repo({ repo_id: 'scm:pe1', label: 'ms-ops' }),
+      repo({ repo_id: 'scm:pe1/aryanoble', label: 'aryanoble', is_submodule: true, submodule_of: 'scm:pe1' }),
+      repo({
+        repo_id: 'scm:pe1/aryanoble/infra/cis-dermies-dev',
+        label: 'infra/cis-dermies-dev',
+        is_submodule: true,
+        submodule_of: 'scm:pe1/aryanoble',
+      }),
+    ]);
+    expect(expandableRepoIds(groups)).toEqual(['scm:pe1', 'scm:pe1/aryanoble']);
   });
 });

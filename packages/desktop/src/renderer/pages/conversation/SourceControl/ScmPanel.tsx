@@ -28,7 +28,18 @@
  */
 
 import { Button, Tooltip } from '@arco-design/web-react';
-import { BranchTwo, FolderCode, FolderCodeOne, Plus, RightBranchOne, TreeList, Undo, ViewList } from '@icon-park/react';
+import {
+  Attention,
+  BranchTwo,
+  FolderCode,
+  FolderCodeOne,
+  Link,
+  Plus,
+  RightBranchOne,
+  TreeList,
+  Undo,
+  ViewList,
+} from '@icon-park/react';
 import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -493,14 +504,8 @@ const ScmDiffPreviewBridge: React.FC<{
 const REPO_WORKTREE_INDENT = 16;
 
 /**
- * One repository row. Shared by primaries, nested worktree children, and orphan
- * worktrees so selection/branch rendering stays identical across all three — the
- * task's invariant that grouping only changes layering, never per-repo semantics.
- *
- * `leading` is the row's left affordance: a primary with worktrees passes its
- * expand/collapse chevron, a worktree passes its glyph, an ordinary repo passes
- * nothing. Clicking the row always selects `repo.repo_id`; the chevron handles its
- * own toggle and stops propagation so expanding never also re-selects.
+ * One repository row. Shared by primaries, nested worktree children, submodules, and orphan
+ * repos so selection/branch rendering stays identical across all kinds.
  */
 const RepoRow: React.FC<{
   repo: ScmRepository;
@@ -508,7 +513,8 @@ const RepoRow: React.FC<{
   onSelect: (repoId: string) => void;
   indent?: number;
   leading?: React.ReactNode;
-}> = ({ repo, isSelected, onSelect, indent = 0, leading }) => (
+  divergedLabel?: string;
+}> = ({ repo, isSelected, onSelect, indent = 0, leading, divergedLabel }) => (
   <div
     role='button'
     tabIndex={0}
@@ -530,6 +536,7 @@ const RepoRow: React.FC<{
     <span className='flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-13px text-t-primary'>
       {repo.pe_name || repo.label}
     </span>
+    {repo.gitlink_diverged && divergedLabel && <DivergedGlyph label={divergedLabel} />}
     {/* Branch info is pinned to the right of the row (`ms-auto`), the branch
         name preceded by a branch glyph. `flex-1` on the repo name above
         claims the slack so the two never touch; both truncate under pressure.
@@ -553,32 +560,168 @@ const WorktreeGlyph: React.FC<{ label: string }> = ({ label }) => (
   </Tooltip>
 );
 
+/** The submodule glyph shown at the left of a submodule row. */
+const SubmoduleGlyph: React.FC<{ label: string }> = ({ label }) => (
+  <Tooltip content={label} mini>
+    <span className='flex-shrink-0 flex items-center' aria-label={label}>
+      <Link theme='outline' size='12' className='text-t-tertiary' />
+    </span>
+  </Tooltip>
+);
+
+/** The gitlink divergence indicator shown when a submodule commit differs from parent commit. */
+const DivergedGlyph: React.FC<{ label: string }> = ({ label }) => (
+  <Tooltip content={label} mini>
+    <span
+      data-scm-gitlink-diverged
+      className='flex-shrink-0 flex items-center gap-2px px-4px py-0.5px rd-2px bg-[var(--color-warning-light-1)] text-[var(--color-warning-dark-1)] text-10px font-medium'
+      aria-label={label}
+    >
+      <Attention theme='outline' size='10' className='flex-shrink-0' />
+      <span>diverged</span>
+    </span>
+  </Tooltip>
+);
+
+type RepoLabels = {
+  worktree: string;
+  submodule: string;
+  expand: string;
+  collapse: string;
+  gitlinkDiverged: string;
+};
+
+/**
+ * Recursive renderer for repository tree nodes: supports primaries, nested worktrees,
+ * and arbitrarily nested submodules.
+ */
+const RepoNodeRows: React.FC<{
+  repo: ScmRepository;
+  worktrees: ScmRepository[];
+  submodules: ReturnType<typeof groupRepositories>[0]['submodules'];
+  isSubmodule?: boolean;
+  isWorktree?: boolean;
+  selectedRepoId: string;
+  onSelect: (repoId: string) => void;
+  collapsed: Set<string>;
+  onToggleParent: (repoId: string, collapsed: boolean) => void;
+  labels: RepoLabels;
+  indent?: number;
+}> = ({
+  repo,
+  worktrees,
+  submodules,
+  isSubmodule = false,
+  isWorktree = false,
+  selectedRepoId,
+  onSelect,
+  collapsed,
+  onToggleParent,
+  labels,
+  indent = 0,
+}) => {
+  const hasChildren = worktrees.length > 0 || submodules.length > 0;
+  const isCollapsed = collapsed.has(repo.repo_id);
+  const RepoIcon = isCollapsed ? FolderCode : FolderCodeOne;
+
+  let leading: React.ReactNode;
+  if (hasChildren) {
+    leading = (
+      <button
+        type='button'
+        data-scm-repo-toggle={repo.repo_id}
+        aria-expanded={!isCollapsed}
+        aria-label={isCollapsed ? labels.expand : labels.collapse}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleParent(repo.repo_id, !isCollapsed);
+        }}
+        className='flex-shrink-0 flex items-center justify-center w-14px h-14px text-t-tertiary hover:text-t-primary bg-transparent border-none p-0 cursor-pointer'
+      >
+        <RepoIcon theme='outline' size='12' />
+      </button>
+    );
+  } else if (isWorktree) {
+    leading = <WorktreeGlyph label={labels.worktree} />;
+  } else if (isSubmodule) {
+    leading = <SubmoduleGlyph label={labels.submodule} />;
+  } else {
+    leading = (
+      <span
+        data-scm-repo-glyph={repo.repo_id}
+        className='flex-shrink-0 flex items-center justify-center w-14px h-14px text-t-tertiary'
+      >
+        <FolderCode theme='outline' size='12' />
+      </span>
+    );
+  }
+
+  return (
+    <>
+      <RepoRow
+        repo={repo}
+        isSelected={repo.repo_id === selectedRepoId}
+        onSelect={onSelect}
+        indent={indent}
+        leading={leading}
+        divergedLabel={labels.gitlinkDiverged}
+      />
+      {hasChildren && !isCollapsed && (
+        <>
+          {worktrees.map((wt) => (
+            <RepoRow
+              key={wt.repo_id}
+              repo={wt}
+              isSelected={wt.repo_id === selectedRepoId}
+              onSelect={onSelect}
+              indent={indent + REPO_WORKTREE_INDENT}
+              leading={<WorktreeGlyph label={labels.worktree} />}
+            />
+          ))}
+          {submodules.map((subNode) => (
+            <RepoNodeRows
+              key={subNode.repo.repo_id}
+              repo={subNode.repo}
+              worktrees={subNode.worktrees}
+              submodules={subNode.submodules}
+              isSubmodule={true}
+              selectedRepoId={selectedRepoId}
+              onSelect={onSelect}
+              collapsed={collapsed}
+              onToggleParent={onToggleParent}
+              labels={labels}
+              indent={indent + REPO_WORKTREE_INDENT}
+            />
+          ))}
+        </>
+      )}
+    </>
+  );
+};
+
 /**
  * Repository switcher, shown only for a multi-repo project. Rows come from
- * `groupRepositories`, which folds linked worktrees under the primary they name
- * (VS Code REPOSITORIES parity); a worktree whose primary is out of view is shown
- * flat with a worktree glyph. A primary that has worktrees gets an expand/collapse
- * chevron whose state persists per project. The name uses `||`, not `??`: the
- * backend promises never to emit `Some("")`, but an empty string must still fall
- * back to `label` rather than smear into a blank repo name. Clicking any row changes
- * which repo fills the body — pure front-end, no `scm/*` request (every repo is
- * already subscribed; see `setSelectedRepo`).
+ * `groupRepositories`, which folds linked worktrees and recursive submodules under
+ * their parents (VS Code REPOSITORIES parity). Clicking any row changes which repo
+ * fills the body.
  */
 const RepoList: React.FC<{
   repositories: ScmRepository[];
   selectedRepoId: string;
   onSelect: (repoId: string) => void;
-  /** Primary repo ids whose worktree children are currently collapsed. */
+  /** Primary repo ids whose children are currently collapsed. */
   collapsedParents: string[];
   onToggleParent: (repoId: string, collapsed: boolean) => void;
 }> = ({ repositories, selectedRepoId, onSelect, collapsedParents, onToggleParent }) => {
   const { t } = useTranslation();
   const groups = useMemo(() => groupRepositories(repositories), [repositories]);
   const collapsed = useMemo(() => new Set(collapsedParents), [collapsedParents]);
-  const labels = {
+  const labels: RepoLabels = {
     worktree: t('conversation.explorer.scm.worktree'),
+    submodule: t('conversation.explorer.scm.submodule'),
     expand: t('conversation.explorer.scm.expandWorktrees'),
     collapse: t('conversation.explorer.scm.collapseWorktrees'),
+    gitlinkDiverged: t('conversation.explorer.scm.gitlinkDiverged'),
   };
 
   return (
@@ -590,92 +733,22 @@ const RepoList: React.FC<{
       className='flex flex-col gap-1px px-4px py-4px border-b border-[var(--bg-3)]'
     >
       {groups.map((group) => (
-        <RepoGroupRows
+        <RepoNodeRows
           key={group.repo.repo_id}
-          group={group}
+          repo={group.repo}
+          worktrees={group.worktrees}
+          submodules={group.submodules}
+          isWorktree={group.kind === 'orphanWorktree'}
+          isSubmodule={group.kind === 'orphanSubmodule'}
           selectedRepoId={selectedRepoId}
           onSelect={onSelect}
-          isCollapsed={collapsed.has(group.repo.repo_id)}
+          collapsed={collapsed}
           onToggleParent={onToggleParent}
           labels={labels}
+          indent={0}
         />
       ))}
     </div>
-  );
-};
-
-/** Renders one grouped entry: an orphan worktree row, or a primary row followed by
- *  its (optionally collapsed) worktree children. */
-const RepoGroupRows: React.FC<{
-  group: ScmRepoGroup;
-  selectedRepoId: string;
-  onSelect: (repoId: string) => void;
-  isCollapsed: boolean;
-  onToggleParent: (repoId: string, collapsed: boolean) => void;
-  labels: { worktree: string; expand: string; collapse: string };
-}> = ({ group, selectedRepoId, onSelect, isCollapsed, onToggleParent, labels }) => {
-  if (group.kind === 'orphanWorktree') {
-    return (
-      <RepoRow
-        repo={group.repo}
-        isSelected={group.repo.repo_id === selectedRepoId}
-        onSelect={onSelect}
-        leading={<WorktreeGlyph label={labels.worktree} />}
-      />
-    );
-  }
-
-  const hasWorktrees = group.worktrees.length > 0;
-  // Collapsed (or non-expandable) shows the closed repo glyph; expanded shows the open
-  // one. A repo with worktrees toggles between the two on click.
-  const RepoIcon = isCollapsed ? FolderCode : FolderCodeOne;
-  return (
-    <>
-      <RepoRow
-        repo={group.repo}
-        isSelected={group.repo.repo_id === selectedRepoId}
-        onSelect={onSelect}
-        leading={
-          hasWorktrees ? (
-            <button
-              type='button'
-              data-scm-repo-toggle={group.repo.repo_id}
-              aria-expanded={!isCollapsed}
-              aria-label={isCollapsed ? labels.expand : labels.collapse}
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleParent(group.repo.repo_id, !isCollapsed);
-              }}
-              className='flex-shrink-0 flex items-center justify-center w-14px h-14px text-t-tertiary hover:text-t-primary bg-transparent border-none p-0 cursor-pointer'
-            >
-              <RepoIcon theme='outline' size='12' />
-            </button>
-          ) : (
-            // A non-expandable repo (no worktrees) still occupies the same 14px leading
-            // slot the toggle would, so its name aligns with expandable rows instead of
-            // shifting a glyph-width to the left.
-            <span
-              data-scm-repo-glyph={group.repo.repo_id}
-              className='flex-shrink-0 flex items-center justify-center w-14px h-14px text-t-tertiary'
-            >
-              <FolderCode theme='outline' size='12' />
-            </span>
-          )
-        }
-      />
-      {hasWorktrees &&
-        !isCollapsed &&
-        group.worktrees.map((wt) => (
-          <RepoRow
-            key={wt.repo_id}
-            repo={wt}
-            isSelected={wt.repo_id === selectedRepoId}
-            onSelect={onSelect}
-            indent={REPO_WORKTREE_INDENT}
-            leading={<WorktreeGlyph label={labels.worktree} />}
-          />
-        ))}
-    </>
   );
 };
 

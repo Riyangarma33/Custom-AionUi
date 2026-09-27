@@ -29,18 +29,31 @@
 import type { ScmRepository } from './scmModel';
 
 /**
- * One entry in the grouped Repositories list.
+ * A node in the repository tree (supports arbitrary nesting depth for submodules
+ * and worktrees).
+ */
+export type ScmRepoNode = {
+  repo: ScmRepository;
+  kind: 'primary' | 'submodule' | 'worktree' | 'orphanWorktree' | 'orphanSubmodule';
+  worktrees: ScmRepository[];
+  submodules: ScmRepoNode[];
+};
+
+/**
+ * One outer entry in the grouped Repositories list.
  *
  *  - `primary` — a normal top-level repo. `worktrees` holds any linked worktrees
- *    that named it via `worktree_of` (empty for an ordinary repo with none). A
- *    non-empty `worktrees` is what the view renders an expand/collapse toggle for.
+ *    that named it via `worktree_of`. `submodules` holds any nested submodules
+ *    that named it via `submodule_of`.
  *  - `orphanWorktree` — a linked worktree whose primary is **not** in view; it is
- *    surfaced at the outer level, flagged so the view can mark it with a worktree
- *    glyph rather than nest it under a parent that is not present.
+ *    surfaced at the outer level.
+ *  - `orphanSubmodule` — a submodule whose parent is **not** in view; it is
+ *    surfaced at the outer level.
  */
 export type ScmRepoGroup =
-  | { kind: 'primary'; repo: ScmRepository; worktrees: ScmRepository[] }
-  | { kind: 'orphanWorktree'; repo: ScmRepository };
+  | { kind: 'primary'; repo: ScmRepository; worktrees: ScmRepository[]; submodules: ScmRepoNode[] }
+  | { kind: 'orphanWorktree'; repo: ScmRepository; worktrees: ScmRepository[]; submodules: ScmRepoNode[] }
+  | { kind: 'orphanSubmodule'; repo: ScmRepository; worktrees: ScmRepository[]; submodules: ScmRepoNode[] };
 
 /** Display name a repo sorts by — the same string the row renders. */
 const repoSortName = (repo: ScmRepository): string => repo.pe_name || repo.label;
@@ -54,58 +67,100 @@ const byName = (a: ScmRepository, b: ScmRepository): number => {
 };
 
 /**
- * Group a flat repository list into primaries with their nested worktrees, plus
- * any orphan worktrees at the outer level.
+ * Group a flat repository list into primaries with their nested worktrees and submodules,
+ * plus any orphan worktrees or submodules at the outer level.
  *
- * Rules, derived straight from the contract:
- *
- *  - a repo is a **worktree child** iff it has a `worktree_of` that resolves to a
- *    repo present in the same list; it nests under that repo. `worktree_of`
- *    pointing at an id **not** in the list is treated as absent (the primary left
- *    the view between frames) — the worktree becomes an orphan, never dropped.
- *  - a repo with `is_worktree: true` and no resolvable `worktree_of` is an
- *    **orphan worktree**, shown at the outer level with its glyph.
- *  - every other repo is a **primary**, even one with `is_worktree` unset that some
- *    worktree points at.
- *
- * Ordering: outer entries alphabetical by display name (primaries and orphan
- * worktrees interleave by name — a single stable outer order); each primary's
- * `worktrees` alphabetical among themselves. Deterministic for a given input.
+ * Submodules are resolved recursively to arbitrary depth (e.g. parent -> submodule -> nested submodule).
  */
 export const groupRepositories = (repositories: ScmRepository[]): ScmRepoGroup[] => {
   const byId = new Map<string, ScmRepository>();
   for (const repo of repositories) byId.set(repo.repo_id, repo);
 
   // A worktree "belongs" only when its named primary is actually present.
-  const belongsTo = (repo: ScmRepository): string | undefined =>
-    repo.worktree_of && byId.has(repo.worktree_of) ? repo.worktree_of : undefined;
+  const worktreeParentOf = (repo: ScmRepository): string | undefined =>
+    repo.is_worktree && repo.worktree_of && byId.has(repo.worktree_of) ? repo.worktree_of : undefined;
 
-  // Bucket children under their resolved primary id.
-  const childrenOf = new Map<string, ScmRepository[]>();
+  // A submodule "belongs" only when its parent is actually present.
+  const submoduleParentOf = (repo: ScmRepository): string | undefined => {
+    if (!repo.is_submodule) return undefined;
+    const parentId = repo.submodule_of || repo.parent_repo;
+    return parentId && byId.has(parentId) ? parentId : undefined;
+  };
+
+  // Bucket worktrees under their resolved primary id.
+  const worktreesOf = new Map<string, ScmRepository[]>();
   for (const repo of repositories) {
-    const parentId = belongsTo(repo);
+    const parentId = worktreeParentOf(repo);
     if (parentId === undefined) continue;
-    const bucket = childrenOf.get(parentId);
+    const bucket = worktreesOf.get(parentId);
     if (bucket) bucket.push(repo);
-    else childrenOf.set(parentId, [repo]);
+    else worktreesOf.set(parentId, [repo]);
   }
+
+  // Bucket submodules under their resolved parent id.
+  const submodulesOf = new Map<string, ScmRepository[]>();
+  for (const repo of repositories) {
+    const parentId = submoduleParentOf(repo);
+    if (parentId === undefined) continue;
+    const bucket = submodulesOf.get(parentId);
+    if (bucket) bucket.push(repo);
+    else submodulesOf.set(parentId, [repo]);
+  }
+
+  // Recursive builder for submodule tree nodes
+  const buildSubmoduleNode = (repo: ScmRepository, visited: Set<string>): ScmRepoNode => {
+    if (visited.has(repo.repo_id)) {
+      return { repo, kind: 'submodule', worktrees: [], submodules: [] };
+    }
+    visited.add(repo.repo_id);
+    const wts = (worktreesOf.get(repo.repo_id) ?? []).toSorted(byName);
+    const directSubs = (submodulesOf.get(repo.repo_id) ?? []).toSorted(byName);
+    const subs = directSubs.map((sub) => buildSubmoduleNode(sub, visited));
+    return {
+      repo,
+      kind: 'submodule',
+      worktrees: wts,
+      submodules: subs,
+    };
+  };
 
   const groups: ScmRepoGroup[] = [];
   for (const repo of repositories) {
-    // A resolved child is rendered under its parent, not at the outer level.
-    if (belongsTo(repo) !== undefined) continue;
+    // If it belongs to an in-view parent as a worktree or submodule, it is rendered nested, not at the outer level.
+    if (worktreeParentOf(repo) !== undefined || submoduleParentOf(repo) !== undefined) continue;
+
+    const worktrees = (worktreesOf.get(repo.repo_id) ?? []).toSorted(byName);
+    const directSubs = (submodulesOf.get(repo.repo_id) ?? []).toSorted(byName);
+    const submodules = directSubs.map((sub) => buildSubmoduleNode(sub, new Set([repo.repo_id])));
+
     if (repo.is_worktree === true) {
-      groups.push({ kind: 'orphanWorktree', repo });
-      continue;
+      groups.push({ kind: 'orphanWorktree', repo, worktrees, submodules });
+    } else if (repo.is_submodule === true) {
+      groups.push({ kind: 'orphanSubmodule', repo, worktrees, submodules });
+    } else {
+      groups.push({ kind: 'primary', repo, worktrees, submodules });
     }
-    const worktrees = (childrenOf.get(repo.repo_id) ?? []).toSorted(byName);
-    groups.push({ kind: 'primary', repo, worktrees });
   }
 
   return groups.toSorted((a, b) => byName(a.repo, b.repo));
 };
 
-/** The `repo_id`s of every primary that has at least one nested worktree — the
- *  rows the view can expand/collapse. Order follows the grouped outer order. */
-export const expandableRepoIds = (groups: ScmRepoGroup[]): string[] =>
-  groups.filter((g) => g.kind === 'primary' && g.worktrees.length > 0).map((g) => g.repo.repo_id);
+/**
+ * The `repo_id`s of every repository that has at least one nested worktree or submodule —
+ * the rows the view can expand/collapse.
+ */
+export const expandableRepoIds = (groups: ScmRepoGroup[]): string[] => {
+  const ids: string[] = [];
+  const collect = (repo: ScmRepository, wts: ScmRepository[], subs: ScmRepoNode[]) => {
+    if (wts.length > 0 || subs.length > 0) {
+      ids.push(repo.repo_id);
+    }
+    for (const sub of subs) {
+      collect(sub.repo, sub.worktrees, sub.submodules);
+    }
+  };
+  for (const g of groups) {
+    collect(g.repo, g.worktrees, g.submodules);
+  }
+  return ids;
+};

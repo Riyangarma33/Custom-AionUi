@@ -721,6 +721,10 @@
       "worktree": "Worktree",
       "expandWorktrees": "Show worktrees",
       "collapseWorktrees": "Hide worktrees",
+      "submodule": "Submodule",
+      "expandSubmodules": "Show submodules",
+      "collapseSubmodules": "Hide submodules",
+      "gitlinkDiverged": "Submodule commit differs from parent commit",
       "state": {
         "created": "Added",
         "modified": "Modified",

@@ -68,6 +68,25 @@ export type ScmRepository = {
    * upstream, never by path text; the client treats it as an opaque id.
    */
   worktree_of?: string;
+  /**
+   * Whether this repository is a git submodule (wire field `is_submodule`, aioncore `types.rs`).
+   * Omitted when false.
+   */
+  is_submodule?: boolean;
+  /**
+   * When this is a git submodule **and** its parent repository is also in the same
+   * project's surfaced set, the parent repository's `repo_id` (wire field `submodule_of`,
+   * aioncore `types.rs`). Omitted when the parent is outside the current view.
+   */
+  submodule_of?: string;
+  /** Client-side alias for `submodule_of`. */
+  parent_repo?: string;
+  /**
+   * Whether the checked-out commit in this submodule's working tree differs from
+   * the gitlink commit recorded in its parent repository's HEAD or index (wire field
+   * `gitlink_diverged`, aioncore `types.rs`). Omitted when false.
+   */
+  gitlink_diverged?: boolean;
   capabilities: ScmCapabilities;
   state: 'idle' | 'refreshing' | 'operation' | 'error';
 };
