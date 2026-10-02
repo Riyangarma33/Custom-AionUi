@@ -340,6 +340,22 @@ export const conversation = {
     ),
     fromApiConversation
   ),
+  /**
+   * Rewind the conversation in-place to a message (inclusive).
+   * Subsequent messages are permanently deleted and the backend session truncated.
+   * Error reasons carry stable `REVERT_*` prefixes for i18n mapping.
+   */
+  revert: httpPost<
+    {
+      conversation_id: string;
+      truncated_count: number;
+      reverted_message: { id: string; content: string };
+    },
+    { conversation_id: string; message_id: string }
+  >(
+    (p) => `/api/conversations/${p.conversation_id}/revert`,
+    (p) => ({ message_id: p.message_id })
+  ),
   ensureRuntime: httpPost<EnsureConversationRuntimeResponse, { conversation_id: string }>(
     (p) => `/api/conversations/${p.conversation_id}/runtime/ensure`,
     () => undefined

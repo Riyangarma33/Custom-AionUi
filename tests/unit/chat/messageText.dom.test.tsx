@@ -149,6 +149,7 @@ vi.mock('@arco-design/web-react', () => ({
 
 vi.mock('@icon-park/react', () => ({
   Copy: () => <span data-testid='copy-icon' />,
+  Undo: () => <span data-testid='undo-icon' />,
 }));
 
 vi.mock('react-i18next', () => ({
@@ -668,6 +669,40 @@ describe('MessageText attachment paths', () => {
     });
     // The whole point: the content endpoint is never hit for an oversized file.
     expect(ipcBridge.fs.readContent.invoke).not.toHaveBeenCalled();
+  });
+
+  it('renders rewind button on user messages in an aionrs conversation', () => {
+    const onStartRevert = vi.fn();
+    const message: IMessageText = {
+      id: 'msg-user-1',
+      msg_id: 'msg-user-1',
+      conversation_id: 'conv-1',
+      type: 'text',
+      position: 'right',
+      createdAt: Date.now(),
+      content: {
+        content: 'Hello, rewind me',
+      },
+    };
+
+    render(
+      <ConversationProvider
+        value={{
+          conversationId: 'conv-1',
+          workspace: '/workspace/demo',
+          type: 'aionrs',
+          forkCapability: { at_turn: true },
+          onStartRevert,
+        }}
+      >
+        <MessageText message={message} showCopyRow isLastMessage />
+      </ConversationProvider>
+    );
+
+    const revertBtn = screen.getByTestId('message-revert-button');
+    expect(revertBtn).toBeInTheDocument();
+    fireEvent.click(revertBtn);
+    expect(onStartRevert).toHaveBeenCalledWith('msg-user-1', 'Hello, rewind me', []);
   });
 });
 

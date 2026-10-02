@@ -13,9 +13,9 @@ import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useLocalFilePreview } from '@/renderer/pages/conversation/Preview/hooks/useLocalFilePreview';
 import { iconColors } from '@/renderer/styles/colors';
 import { Alert, Message, Tooltip } from '@arco-design/web-react';
-import { Copy } from '@icon-park/react';
+import { Copy, Undo } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { copyText } from '@/renderer/utils/ui/clipboard';
 import CollapsibleContent from '@renderer/components/chat/CollapsibleContent';
@@ -26,8 +26,10 @@ import { stripThinkTags, hasThinkTags } from '@renderer/utils/chat/thinkTagFilte
 import { buildTurnClipboardText } from '@renderer/utils/chat/turnCopy';
 import { stripSkillSuggest, hasSkillSuggest } from '@renderer/utils/chat/skillSuggestParser';
 import { isForkEnabled } from '@/common/chat/forkConversation';
+import { isRevertEnabled } from '@/common/chat/revertConversation';
 import { useForkConversation } from '@/renderer/hooks/chat/useForkConversation';
 import ForkBranchIcon from '@renderer/components/base/ForkBranchIcon';
+import MobileActionSheet, { type MobileActionSheetEntry } from '@/renderer/components/chat/MobileActionSheet';
 
 /**
  * Format a timestamp for message display.
@@ -198,7 +200,7 @@ const MessageText: React.FC<{
   const copyButton = (
     <Tooltip content={t('common.copy', { defaultValue: 'Copy' })}>
       <div
-        className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto'
+        className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors opacity-0 group-hover:opacity-100 focus-within:opacity-100'
         onClick={handleCopy}
         style={{ lineHeight: 0 }}
       >
@@ -217,7 +219,7 @@ const MessageText: React.FC<{
   const forkButton = showForkButton ? (
     <Tooltip content={t('messages.fork.action')}>
       <div
-        className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto'
+        className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors opacity-0 group-hover:opacity-100 focus-within:opacity-100'
         onClick={() => void forkConversation(message.msg_id ?? message.id)}
         style={{ lineHeight: 0 }}
         data-testid='message-fork-button'
@@ -226,6 +228,89 @@ const MessageText: React.FC<{
       </div>
     </Tooltip>
   ) : null;
+
+  // In-place rewind affordance: exclusively on user messages, gated by agent capability
+  const showRevertButton = isRevertEnabled(conversationContext?.type, conversationContext?.forkCapability, {
+    isUserMessage,
+    isLastMessage,
+    hasTurnAnchor: hasForkAnchor,
+  });
+
+  const handleRevert = useCallback(() => {
+    if (!conversationContext?.onStartRevert) return;
+    const rawContent = message.content.content;
+    const promptText = typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent);
+    conversationContext.onStartRevert(message.msg_id ?? message.id, promptText, files);
+  }, [conversationContext, files, message.content.content, message.id, message.msg_id]);
+
+  const revertButton = showRevertButton ? (
+    <Tooltip content={t('messages.revert.action', { defaultValue: 'Rewind to this message' })}>
+      <button
+        type='button'
+        aria-label={t('messages.revert.action', { defaultValue: 'Rewind to this message' })}
+        className='p-4px rd-4px cursor-pointer hover:bg-3 transition-colors opacity-0 group-hover:opacity-100 focus-within:opacity-100 border-none bg-transparent'
+        onClick={handleRevert}
+        style={{ lineHeight: 0 }}
+        data-testid='message-revert-button'
+      >
+        <Undo theme='outline' size='16' fill={iconColors.secondary} />
+      </button>
+    </Tooltip>
+  ) : null;
+
+  // Mobile long-press / context menu
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const longPressTimerRef = useRef<number | null>(null);
+
+  const startLongPress = useCallback(() => {
+    if (!isMobile || !isUserMessage) return;
+    longPressTimerRef.current = window.setTimeout(() => {
+      setMobileSheetOpen(true);
+    }, 500);
+  }, [isMobile, isUserMessage]);
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimerRef.current !== null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const mobileEntries = useMemo(() => {
+    const entries: MobileActionSheetEntry[] = [];
+    if (showRevertButton) {
+      entries.push({
+        key: 'revert',
+        icon: <Undo theme='outline' size='16' />,
+        label: t('messages.revert.action', { defaultValue: 'Rewind to this message' }),
+        onClick: () => {
+          setMobileSheetOpen(false);
+          handleRevert();
+        },
+      });
+    }
+    if (showForkButton) {
+      entries.push({
+        key: 'fork',
+        icon: <ForkBranchIcon size={16} fill='currentColor' />,
+        label: t('messages.fork.action', { defaultValue: 'Fork conversation' }),
+        onClick: () => {
+          setMobileSheetOpen(false);
+          void forkConversation(message.msg_id ?? message.id);
+        },
+      });
+    }
+    entries.push({
+      key: 'copy',
+      icon: <Copy theme='outline' size='16' />,
+      label: t('common.copy', { defaultValue: 'Copy' }),
+      onClick: () => {
+        setMobileSheetOpen(false);
+        handleCopy();
+      },
+    });
+    return entries;
+  }, [forkConversation, handleCopy, handleRevert, message.id, message.msg_id, showForkButton, showRevertButton, t]);
 
   const cronMeta = message.content.cronMeta;
   const displaySenderName = senderName === 'team_system' ? t('team.systemNotice.sender') : senderName;
@@ -322,6 +407,27 @@ const MessageText: React.FC<{
                   }
                 : undefined),
           }}
+          onTouchStart={startLongPress}
+          onTouchEnd={cancelLongPress}
+          onTouchMove={cancelLongPress}
+          onClick={() => {
+            if (isMobile && isUserMessage) {
+              setMobileSheetOpen(true);
+            }
+          }}
+          role={isMobile && isUserMessage ? 'button' : undefined}
+          tabIndex={isMobile && isUserMessage ? 0 : undefined}
+          aria-label={
+            isMobile && isUserMessage
+              ? `User message: ${typeof message.content.content === 'string' ? message.content.content : 'text'}`
+              : undefined
+          }
+          onContextMenu={(e) => {
+            if (isMobile && isUserMessage) {
+              e.preventDefault();
+              setMobileSheetOpen(true);
+            }
+          }}
         >
           {/* JSON 内容使用折叠组件 Use CollapsibleContent for JSON content */}
           {shouldRenderPlainText ? (
@@ -362,6 +468,7 @@ const MessageText: React.FC<{
           >
             {copyButton}
             {forkButton}
+            {revertButton}
             {message.created_at && (
               <span className='text-12px text-t-secondary opacity-0 group-hover:opacity-100 transition-opacity select-none'>
                 {formatMessageTime(message.created_at)}
@@ -370,6 +477,14 @@ const MessageText: React.FC<{
           </div>
         )}
       </div>
+      {isMobile && isUserMessage && (
+        <MobileActionSheet
+          open={mobileSheetOpen}
+          onClose={() => setMobileSheetOpen(false)}
+          title={t('messages.actionSheet.title', { defaultValue: 'Message Actions' })}
+          entries={mobileEntries}
+        />
+      )}
       {showCopyAlert && (
         <Alert
           type='success'

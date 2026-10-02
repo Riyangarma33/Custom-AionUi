@@ -88,6 +88,22 @@
     "errorUnsupported": "该智能体不支持会话分叉",
     "errorGeneric": "分叉失败：{{message}}"
   },
+  "revert": {
+    "action": "回退到此消息",
+    "dock": {
+      "rolledBackCount": "{{count}} 条已回退消息",
+      "rolledBackCount_other": "{{count}} 条已回退消息",
+      "restore": "恢复消息"
+    },
+    "errorTurnInFlight": "请等待当前回复完成后再回退",
+    "errorPointUnsupported": "此消息无法作为回退点",
+    "errorUnsupported": "此智能体不支持回退",
+    "errorConcurrentModification": "会话已被并发修改",
+    "errorGeneric": "回退失败：{{message}}"
+  },
+  "actionSheet": {
+    "title": "消息操作"
+  },
   "askSubmit": "提交",
   "askDecline": "不回答",
   "askAnswered": "已回答",

@@ -76,6 +76,34 @@ export interface ConversationContextValue {
    * attachments reach the agent as file paths, and the send box hints so.
    */
   promptCapability?: { image: boolean; audio: boolean };
+
+  /**
+   * Pending in-place rewind state. When set, subsequent messages are hidden from view
+   * and a RevertDock is displayed above the SendBox.
+   */
+  pendingRevert?: {
+    targetMessageId: string;
+    prompt: string;
+    files?: string[];
+    rolledBackCount?: number;
+  } | null;
+
+  /**
+   * Initiates a pending rewind to `messageId`, hiding subsequent messages,
+   * prefilling the sendbox with `prompt`, and displaying the RevertDock.
+   */
+  onStartRevert?: (messageId: string, prompt: string, files?: string[]) => void;
+
+  /**
+   * Cancels the pending rewind, restoring hidden messages and optionally clearing the sendbox.
+   */
+  onCancelRevert?: (options?: { clearDraft?: boolean }) => void;
+
+  /**
+   * Commits the pending rewind on the client, permanently truncating the in-memory message list
+   * to targetMessageId and clearing pendingRevert state.
+   */
+  onCommitRevert?: (targetMessageId: string) => void;
 }
 
 /**

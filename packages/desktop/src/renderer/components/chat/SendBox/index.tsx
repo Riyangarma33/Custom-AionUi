@@ -733,8 +733,11 @@ const SendBox: React.FC<{
   }, []);
 
   const handleConversationPrefill = useCallback(
-    ({ prompt, requestId }: { prompt: string; requestId: number }) => {
-      const expectedValue = appendPromptToDraft(prefillDraftChainRef.current ?? latestInputRef.current, prompt);
+    ({ prompt, requestId, mode }: { prompt: string; requestId: number; mode?: 'append' | 'replace' }) => {
+      const expectedValue =
+        mode === 'replace'
+          ? prompt
+          : appendPromptToDraft(prefillDraftChainRef.current ?? latestInputRef.current, prompt);
       prefillDraftChainRef.current = expectedValue;
       setInputRef.current(expectedValue);
       setPrefillFocusRequest({ requestId, expectedValue });

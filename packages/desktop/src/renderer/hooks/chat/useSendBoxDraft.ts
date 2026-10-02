@@ -40,6 +40,7 @@ const store: SendBoxDraftStore = {
 export type ConversationSendBoxPrefill = {
   requestId: number;
   prompt: string;
+  mode?: 'append' | 'replace';
 };
 
 type ConversationSendBoxPrefillListener = (prefill: ConversationSendBoxPrefill) => void;
@@ -66,12 +67,19 @@ export const appendPromptToDraft = (draft: string, prompt: string): string => {
  * Delivers a prefill only to the SendBox owned by the requested conversation.
  * If that SendBox is not mounted yet, the request remains queued until it is.
  */
-export const requestConversationSendBoxPrefill = (conversation_id: string, prompt: string): void => {
-  if (!conversation_id || !prompt) return;
+export const requestConversationSendBoxPrefill = (
+  conversation_id: string,
+  prompt: string,
+  options?: { mode?: 'append' | 'replace' }
+): void => {
+  if (!conversation_id) return;
+  const mode = options?.mode ?? 'append';
+  if (mode === 'append' && !prompt) return;
 
-  const prefill = {
+  const prefill: ConversationSendBoxPrefill = {
     requestId: ++nextConversationPrefillRequestId,
     prompt,
+    mode,
   };
   // A navigation can only have one not-yet-mounted destination. Supersede an
   // older target so opening it later cannot inject a stale prompt.

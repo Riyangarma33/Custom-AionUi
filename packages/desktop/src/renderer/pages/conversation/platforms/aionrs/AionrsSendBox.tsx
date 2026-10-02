@@ -32,6 +32,7 @@ import {
   type ConversationCommandQueueItem,
 } from '@/renderer/pages/conversation/platforms/useConversationCommandQueue';
 import { useConversationRuntimeView } from '@/renderer/pages/conversation/runtime/useConversationRuntimeView';
+import { getRevertErrorMessage } from '@/renderer/hooks/chat/useRevertConversation';
 import { getConversationRuntimeWorkspaceErrorMessage } from '@/renderer/pages/conversation/utils/conversationCreateError';
 import { getChatSurfaceWidthClass } from '@/renderer/pages/conversation/utils/chatSurfaceWidth';
 import { ensureConversationRuntime } from '@/renderer/pages/conversation/utils/ensureConversationRuntime';
@@ -223,6 +224,7 @@ const AionrsSendBox: React.FC<{
   const setContentRef = useLatestRef(setContent);
   const contentRef = useLatestRef(content);
   const atPathRef = useLatestRef(atPath);
+  const conversationContextRef = useLatestRef(conversationContext);
 
   // Register handler for adding text from preview panel to sendbox
   useEffect(() => {
@@ -263,6 +265,22 @@ const AionrsSendBox: React.FC<{
       // ChatFileRef to an absolute path and injects the [[AION_FILES]] marker at
       // the send edge — the front-end no longer builds paths nor the marker.
       try {
+        const activePendingRevert = conversationContextRef.current?.pendingRevert;
+        if (activePendingRevert?.targetMessageId) {
+          const targetId = activePendingRevert.targetMessageId;
+          try {
+            await ipcBridge.conversation.revert.invoke({
+              conversation_id,
+              message_id: targetId,
+            });
+            conversationContextRef.current?.onCommitRevert?.(targetId);
+          } catch (revertErr) {
+            const revertMsg = getRevertErrorMessage(revertErr, t);
+            Message.error(revertMsg);
+            throw revertErr;
+          }
+        }
+
         void checkAndUpdateTitle(conversation_id, input);
         if (teamSendMessage) {
           await teamSendMessage({ input, files });

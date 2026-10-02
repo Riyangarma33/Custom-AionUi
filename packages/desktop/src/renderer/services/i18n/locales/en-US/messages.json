@@ -88,6 +88,22 @@
     "errorUnsupported": "This agent does not support forking",
     "errorGeneric": "Fork failed: {{message}}"
   },
+  "revert": {
+    "action": "Rewind to this message",
+    "dock": {
+      "rolledBackCount": "{{count}} rolled back message",
+      "rolledBackCount_other": "{{count}} rolled back messages",
+      "restore": "Restore message"
+    },
+    "errorTurnInFlight": "Wait for the current reply to finish before rewinding",
+    "errorPointUnsupported": "This message cannot be used as a rewind point",
+    "errorUnsupported": "This agent does not support rewind",
+    "errorConcurrentModification": "Conversation was modified concurrently",
+    "errorGeneric": "Rewind failed: {{message}}"
+  },
+  "actionSheet": {
+    "title": "Message Actions"
+  },
   "askSubmit": "Submit",
   "askDecline": "Dismiss",
   "askAnswered": "Answered",

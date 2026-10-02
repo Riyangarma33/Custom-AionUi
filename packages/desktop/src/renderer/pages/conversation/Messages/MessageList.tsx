@@ -354,6 +354,18 @@ const MessageList: React.FC<{ className?: string; emptySlot?: React.ReactNode }>
   const scrollerElementRef = useRef<HTMLDivElement | null>(null);
   const contentElementRef = useRef<HTMLDivElement | null>(null);
 
+  const pendingRevert = conversationContext?.pendingRevert;
+
+  // In-place rewind: when a pending revert is active, hide the target message and all subsequent messages
+  const visibleRawList = useMemo(() => {
+    if (!pendingRevert?.targetMessageId) return list;
+    const targetIdx = list.findIndex(
+      (m) => m.id === pendingRevert.targetMessageId || (m.msg_id && m.msg_id === pendingRevert.targetMessageId)
+    );
+    if (targetIdx === -1) return list;
+    return list.slice(0, targetIdx);
+  }, [list, pendingRevert]);
+
   // Pre-process message list to group tool outputs into summary cards
   const processedList = useMemo(() => {
     const result: Array<IMessageVO> = [];
@@ -402,8 +414,8 @@ const MessageList: React.FC<{ className?: string; emptySlot?: React.ReactNode }>
       result.push(message);
     };
 
-    for (let i = 0, len = list.length; i < len; i++) {
-      const message = list[i];
+    for (let i = 0, len = visibleRawList.length; i < len; i++) {
+      const message = visibleRawList[i];
       // Skip hidden and available_commands messages
       if (message.hidden) continue;
       if (message.type === 'available_commands') continue;
@@ -457,7 +469,7 @@ const MessageList: React.FC<{ className?: string; emptySlot?: React.ReactNode }>
     return [...result, ...visibleArtifacts].toSorted(
       (a, b) => getProcessedItemCreatedAt(a) - getProcessedItemCreatedAt(b)
     );
-  }, [artifacts, list]);
+  }, [artifacts, visibleRawList]);
 
   // An AI reply can be split into several messages (thinking / multiple text /
   // tool blocks). The hover copy + timestamp row should appear once per turn,
