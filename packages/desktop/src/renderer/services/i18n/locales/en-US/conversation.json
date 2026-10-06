@@ -585,6 +585,7 @@
     "filterMcp": "MCP",
     "filterActive": "Active",
     "activeTag": "Active",
+    "workspaceTag": "Workspace",
     "reset": "Reset",
     "noResults": "No matching skills or MCP servers found",
     "clearSearch": "Clear search",

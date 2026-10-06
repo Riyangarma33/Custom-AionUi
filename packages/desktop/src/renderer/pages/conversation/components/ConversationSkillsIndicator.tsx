@@ -33,6 +33,8 @@ type ConversationBindingExtra = {
   mcp_server_ids?: string[];
   mcp_statuses?: IConversationMcpStatus[];
   session_mcp_servers?: unknown[];
+  workspace_skills?: Array<{ name: string; description: string; path?: string }>;
+  suggested_skills?: Array<{ name: string; description: string; path?: string }>;
 };
 
 type FilterTabKey = 'all' | 'skills' | 'mcp' | 'active';
@@ -85,8 +87,10 @@ const ConversationSkillsIndicator: React.FC<ConversationSkillsIndicatorProps> = 
   const { data: mcpServers, isLoading: isLoadingMcp } = useSWR('mcp-servers-list', () =>
     mcpService.listServers.invoke()
   );
-  const { data: skillIndex, isLoading: isLoadingSkills } = useSWR('skills-index-list', () =>
-    ipcBridge.fs.listAvailableSkills.invoke()
+  const workspacePath = ((conversation?.extra as { workspace?: string } | undefined)?.workspace) ?? undefined;
+  const { data: skillIndex, isLoading: isLoadingSkills } = useSWR(
+    workspacePath ? `skills-index-list-${workspacePath}` : 'skills-index-list',
+    () => ipcBridge.fs.listAvailableSkills.invoke(workspacePath ? { workspace: workspacePath } : undefined)
   );
   const isLoadingCatalog = (isLoadingMcp && !mcpServers) || (isLoadingSkills && !skillIndex);
 
@@ -121,8 +125,34 @@ const ConversationSkillsIndicator: React.FC<ConversationSkillsIndicatorProps> = 
   }, [mcpServers, draftMcpIds]);
 
   const combinedSkills = useMemo(() => {
-    const list = [...(skillIndex ?? [])];
+    const list = (skillIndex ?? []).map((s) => ({ ...s }));
     const knownNames = new Set(list.map((s) => s.name));
+
+    // Surface discovered workspace skills (Phase 3.9e)
+    const discoveredWorkspaceSkills = extra.workspace_skills ?? extra.suggested_skills ?? [];
+    for (const ws of discoveredWorkspaceSkills) {
+      if (!knownNames.has(ws.name)) {
+        list.push({
+          name: ws.name,
+          description: ws.description,
+          location: ws.path ?? '',
+          is_auto_inject: false,
+          is_custom: false,
+          source: 'workspace' as any,
+        });
+        knownNames.add(ws.name);
+      } else {
+        // Workspace skill shadows a built-in or user skill with the same name
+        const existing = list.find((s) => s.name === ws.name);
+        if (existing) {
+          existing.source = 'workspace' as any;
+          if (ws.description) {
+            existing.description = ws.description;
+          }
+        }
+      }
+    }
+
     for (const name of draftSkillNames) {
       if (!knownNames.has(name)) {
         list.push({
@@ -133,10 +163,11 @@ const ConversationSkillsIndicator: React.FC<ConversationSkillsIndicatorProps> = 
           is_custom: true,
           source: 'custom',
         });
+        knownNames.add(name);
       }
     }
     return list;
-  }, [skillIndex, draftSkillNames]);
+  }, [skillIndex, draftSkillNames, extra.workspace_skills, extra.suggested_skills]);
 
   // Track draft diff
   const hasMcpChanges =
@@ -577,6 +608,16 @@ const ConversationSkillsIndicator: React.FC<ConversationSkillsIndicatorProps> = 
                                     <div className='min-w-0 flex-1'>
                                       <div className='flex items-center gap-6px flex-wrap'>
                                         <span className='text-13px font-600 text-t-primary'>{skill.name}</span>
+                                        {skill.source === 'workspace' && (
+                                          <Tag
+                                            size='small'
+                                            color='arcoblue'
+                                            className='!text-11px !h-18px !px-4px !leading-16px'
+                                            data-testid={`workspace-badge-${skill.name}`}
+                                          >
+                                            {t('conversation.bindings.workspaceTag', 'Workspace')}
+                                          </Tag>
+                                        )}
                                         {isEnabled && (
                                           <Tag
                                             size='small'

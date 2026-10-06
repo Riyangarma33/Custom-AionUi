@@ -629,8 +629,14 @@ const SendBox: React.FC<{
   // the global skills index (shared SWR key `skills-index`) purely to attach a
   // human-readable description; the loadedSkills snapshot decides which appear.
   const loadedSkills = conversationContext?.loadedSkills;
-  const { data: skillIndex } = useSWR(loadedSkills && loadedSkills.length > 0 ? 'skills-index' : null, () =>
-    ipcBridge.fs.listAvailableSkills.invoke()
+  const workspacePath = conversationContext?.workspace;
+  const { data: skillIndex } = useSWR(
+    loadedSkills && loadedSkills.length > 0
+      ? workspacePath
+        ? `skills-index-${workspacePath}`
+        : 'skills-index'
+      : null,
+    () => ipcBridge.fs.listAvailableSkills.invoke(workspacePath ? { workspace: workspacePath } : undefined)
   );
   const skillSlashCommands = useMemo<SlashCommandItem[]>(() => {
     const descriptionByName = new Map((skillIndex ?? []).map((s) => [s.name, s.description]));

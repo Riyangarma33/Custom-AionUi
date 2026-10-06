@@ -252,6 +252,9 @@ export type TChatConversation =
           /** Skills snapshot for this conversation — authoritative list, written
            * once at creation. Join with `GET /api/skills` for descriptions. */
           skills?: string[];
+          /** Workspace project skills discovered at conversation creation (default disabled). */
+          workspace_skills?: Array<{ name: string; description: string; path?: string }>;
+          suggested_skills?: Array<{ name: string; description: string; path?: string }>;
           /** MCP server id snapshot chosen when the conversation was created. */
           mcp_server_ids?: string[];
           /** MCP server name snapshot chosen when the conversation was created. */
@@ -457,6 +460,9 @@ export type TChatConversation =
         /** Skills snapshot for this conversation — authoritative list, written
          * once at creation. Join with `GET /api/skills` for descriptions. */
         skills?: string[];
+        /** Workspace project skills discovered at conversation creation (default disabled). */
+        workspace_skills?: Array<{ name: string; description: string; path?: string }>;
+        suggested_skills?: Array<{ name: string; description: string; path?: string }>;
         /** MCP server id snapshot chosen when the conversation was created. */
         mcp_server_ids?: string[];
         /** MCP server name snapshot chosen when the conversation was created. */

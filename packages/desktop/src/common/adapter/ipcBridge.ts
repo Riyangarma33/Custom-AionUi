@@ -940,10 +940,10 @@ export const fs = {
       relative_location?: string;
       is_auto_inject: boolean;
       is_custom: boolean;
-      source: 'builtin' | 'custom' | 'cron' | 'extension';
+      source: 'builtin' | 'custom' | 'cron' | 'extension' | 'workspace';
     }>,
-    void
-  >('/api/skills'),
+    { workspace?: string } | void
+  >((p) => (p && p.workspace ? `/api/skills?workspace=${encodeURIComponent(p.workspace)}` : '/api/skills')),
   materializeSkillsForAgent: httpPost<
     { skills: Array<{ name: string; source_path: string }> },
     { conversation_id: string; skills: string[] }
