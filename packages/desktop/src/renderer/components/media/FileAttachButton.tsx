@@ -92,8 +92,10 @@ const FileAttachButton: React.FC<FileAttachButtonProps> = ({
     loadedMcpStatuses ?? conversationContext?.loadedMcpStatuses,
     conversationContext?.loadedMcpServers
   );
-  const { data: skillIndex } = useSWR(skillNames.length > 0 ? 'skills-index' : null, () =>
-    ipcBridge.fs.listAvailableSkills.invoke()
+  const workspacePath = conversationContext?.workspace;
+  const { data: skillIndex } = useSWR(
+    skillNames.length > 0 ? (workspacePath ? `skills-index-${workspacePath}` : 'skills-index') : null,
+    () => ipcBridge.fs.listAvailableSkills.invoke(workspacePath ? { workspace: workspacePath } : undefined)
   );
   const descriptionByName = new Map((skillIndex ?? []).map((s) => [s.name, s.description]));
 

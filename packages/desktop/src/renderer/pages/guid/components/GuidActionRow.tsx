@@ -22,7 +22,7 @@ import { iconColors } from '@/renderer/styles/colors';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import type { AcpModelInfo } from '../types';
 import { getAvailableModels } from '../utils/modelUtils';
-import { Button, Checkbox, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
+import { Button, Checkbox, Dropdown, Menu, Message, Tag, Tooltip } from '@arco-design/web-react';
 import {
   ArrowUp,
   Brain,
@@ -102,7 +102,7 @@ type GuidActionRowProps = {
   onModeSelect: (mode: string) => void;
 
   // Skills management
-  allSkills: Array<{ name: string; description: string; isAuto: boolean }>;
+  allSkills: Array<{ name: string; description: string; isAuto: boolean; source?: string }>;
   disabledBuiltinSkills: string[];
   enabledSkills: string[];
   onToggleSkill: (name: string, isAuto: boolean) => void;
@@ -363,7 +363,16 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
           multiSelect: true,
           options: allSkills.map((skill) => ({
             key: skill.name,
-            label: skill.name,
+            label: (
+              <span className='flex items-center gap-6px'>
+                <span>{skill.name}</span>
+                {skill.source === 'workspace' && (
+                  <Tag size='small' color='arcoblue' className='!text-11px !h-18px !px-4px !leading-16px'>
+                    {t('conversation.bindings.workspaceTag', 'Workspace')}
+                  </Tag>
+                )}
+              </span>
+            ),
             description: skill.description || undefined,
             active: isSkillChecked(skill),
           })),
@@ -483,7 +492,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
               </span>
             </div>
           }
-          triggerProps={{ popupStyle: { overflowX: 'hidden' } }}
+          triggerProps={{ popupStyle: { overflowX: 'hidden', minWidth: '240px' } }}
         >
           <SubmenuSearchList
             showSearch={showSkillSearch}
@@ -508,6 +517,11 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
                   onChange={() => onToggleSkill(skill.name, skill.isAuto)}
                 >
                   <span className='text-13px'>{skill.name}</span>
+                  {skill.source === 'workspace' && (
+                    <Tag size='small' color='arcoblue' className='!ms-6px !text-11px !h-18px !px-4px !leading-16px'>
+                      {t('conversation.bindings.workspaceTag', 'Workspace')}
+                    </Tag>
+                  )}
                 </Checkbox>
               </Menu.Item>
             ))}

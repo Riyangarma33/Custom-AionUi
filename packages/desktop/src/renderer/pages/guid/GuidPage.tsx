@@ -75,30 +75,49 @@ const GuidPage: React.FC = () => {
     }
   }, []);
 
+  const navState = location.state as GuidNavigationState | null;
+  const resetAssistantRequested = navState?.resetAssistant === true;
+  const preselectAssistantId = navState?.selectedAssistantId;
+  const agentSelection = useGuidAssistantSelection({
+    resetAssistant: resetAssistantRequested,
+    preselectAssistantId,
+    locationKey: location.key,
+  });
+
+  const guidInput = useGuidInput({
+    locationState: location.state as { workspace?: string } | null,
+  });
+
   // --- Skills state ---
   // Skill metadata comes from the database-backed catalog. Built-in auto-inject
   // skills default checked; the rest are opt-in per conversation or pre-checked
   // by assistant defaults.
-  const [allSkills, setAllSkills] = useState<Array<{ name: string; description: string; isAuto: boolean }>>([]);
+  const [allSkills, setAllSkills] = useState<
+    Array<{ name: string; description: string; isAuto: boolean; source?: string }>
+  >([]);
   const [guidDisabledBuiltinSkills, setGuidDisabledBuiltinSkills] = useState<string[] | undefined>(undefined);
   const [guidEnabledSkills, setGuidEnabledSkills] = useState<string[] | undefined>(undefined);
   const [availableMcpServers, setAvailableMcpServers] = useState<IMcpServer[]>([]);
   const [guidSelectedMcpServerIds, setGuidSelectedMcpServerIds] = useState<string[] | undefined>(undefined);
 
+  const guidWorkspaceDir = guidInput.dir;
   useEffect(() => {
+    setGuidEnabledSkills(undefined);
+    const ws = guidWorkspaceDir ? { workspace: guidWorkspaceDir } : undefined;
     ipcBridge.fs.listAvailableSkills
-      .invoke()
+      .invoke(ws)
       .then((availableSkills) => {
         setAllSkills(
           availableSkills.map((s) => ({
             name: s.name,
             description: s.description,
             isAuto: s.source === 'builtin' && s.is_auto_inject,
+            source: s.source,
           }))
         );
       })
       .catch(() => setAllSkills([]));
-  }, []);
+  }, [guidWorkspaceDir]);
 
   useEffect(() => {
     void ensureBackendMcpCatalog()
@@ -137,18 +156,6 @@ const GuidPage: React.FC = () => {
   // regular ACP backend with its own model selector).
   const modelSelection = useGuidModelSelection('aionrs');
 
-  const navState = location.state as GuidNavigationState | null;
-  const resetAssistantRequested = navState?.resetAssistant === true;
-  const preselectAssistantId = navState?.selectedAssistantId;
-  const agentSelection = useGuidAssistantSelection({
-    resetAssistant: resetAssistantRequested,
-    preselectAssistantId,
-    locationKey: location.key,
-  });
-
-  const guidInput = useGuidInput({
-    locationState: location.state as { workspace?: string } | null,
-  });
   // The `/open` builtin + attach picker browse the backend machine's filesystem
   // (native dialog / server-fs) → `local` refs, not uploads.
   const { onSlashBuiltinCommand } = useOpenFileSelector({
