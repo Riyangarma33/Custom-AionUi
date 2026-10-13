@@ -63,6 +63,7 @@ import { SearchPanel } from './search/SearchPanel';
 import type { SearchHit } from './search/searchModel';
 import { ScmPanel } from '../SourceControl/ScmPanel';
 import { rediscoverRepos, refreshAllRepos } from '../SourceControl/scmStore';
+import { SpecsListPanel } from '../specs/SpecsListPanel';
 
 export type ExplorerContainerProps = {
   /** Owning project id — scopes the store's fact cache + localStorage UI state. */
@@ -252,7 +253,8 @@ export const ExplorerContainer: React.FC<ExplorerContainerProps> = ({ projectId 
   // unmounts the inactive one for `changes`, which is safe because the SCM
   // subscription is owned by its store per project, not by the component's mount
   // (see ScmPanel's lifecycle note) — a tab switch never drops the backend watch.
-  const [activeTab, setActiveTab] = useState<'files' | 'changes'>('files');
+  const [activeTab, setActiveTab] = useState<'files' | 'changes' | 'specs'>('files');
+  const [visitedSpecs, setVisitedSpecs] = useState(false);
   // Busy flag for the top-bar refresh: spins the icon and disables re-click while a
   // refresh is in flight (so rapid clicks don't fan out redundant backend round-trips).
   const [refreshing, setRefreshing] = useState(false);
@@ -501,6 +503,8 @@ export const ExplorerContainer: React.FC<ExplorerContainerProps> = ({ projectId 
     try {
       if (activeTab === 'changes') {
         await Promise.all([rediscoverRepos(), refreshAllRepos()]);
+      } else if (activeTab === 'specs') {
+        emitter.emit('specs.refresh');
       } else {
         await Promise.all([mutate(), ...roots.map((root) => refreshRoot(root.pe_id))]);
       }
@@ -509,12 +513,17 @@ export const ExplorerContainer: React.FC<ExplorerContainerProps> = ({ projectId 
     }
   };
 
-  const tabButton = (key: 'files' | 'changes', label: string) => (
+  const tabButton = (key: 'files' | 'changes' | 'specs', label: string) => (
     <Button
       type='text'
       size='small'
-      className={`flex-shrink-0 !px-8px ${activeTab === key ? '!text-t-primary !font-medium !bg-2' : '!text-t-secondary'}`}
-      onClick={() => setActiveTab(key)}
+      className={`flex-shrink-0 !px-6px !text-12px ${activeTab === key ? '!text-t-primary !font-medium !bg-2' : '!text-t-secondary'}`}
+      onClick={() => {
+        if (key === 'specs' && !visitedSpecs) {
+          setVisitedSpecs(true);
+        }
+        setActiveTab(key);
+      }}
     >
       {label}
     </Button>
@@ -543,6 +552,7 @@ export const ExplorerContainer: React.FC<ExplorerContainerProps> = ({ projectId 
         <div className='flex items-center gap-2px overflow-x-auto flex-1 min-w-0'>
           {tabButton('files', t('conversation.explorer.tabs.files'))}
           {tabButton('changes', t('conversation.explorer.tabs.changes'))}
+          {tabButton('specs', t('conversation.explorer.tabs.specs', { defaultValue: 'Specs' }))}
         </div>
         <div className='flex items-center gap-2px flex-shrink-0'>
           {/* Right cluster order (VS Code parity): project-scope actions first (add
@@ -645,6 +655,11 @@ export const ExplorerContainer: React.FC<ExplorerContainerProps> = ({ projectId 
       {activeTab === 'changes' && (
         <div className='flex-1 min-h-0'>
           <ScmPanel projectId={projectId} />
+        </div>
+      )}
+      {(visitedSpecs || activeTab === 'specs') && (
+        <div className='flex-1 min-h-0' style={activeTab === 'specs' ? undefined : { display: 'none' }}>
+          <SpecsListPanel projectId={projectId} />
         </div>
       )}
       <Modal

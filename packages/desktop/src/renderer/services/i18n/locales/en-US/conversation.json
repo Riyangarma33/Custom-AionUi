@@ -688,7 +688,8 @@
     "newDirFailed": "Couldn't create folder",
     "tabs": {
       "files": "Files",
-      "changes": "Changes"
+      "changes": "Changes",
+      "specs": "Specs"
     },
     "addedToChat": "Added {{name}} to chat",
     "imported": "Imported {{count}} file(s)",

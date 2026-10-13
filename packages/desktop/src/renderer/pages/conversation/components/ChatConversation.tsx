@@ -27,6 +27,7 @@ import ChatSlider from './ChatSlider.tsx';
 import AcpModelSelector from '@/renderer/components/agent/AcpModelSelector';
 import AcpRuntimeRestartButton from '@/renderer/components/agent/AcpRuntimeRestartButton';
 import ConversationSkillsIndicator from './ConversationSkillsIndicator';
+import { SpecHeaderPill } from '../specs/SpecHeaderPill';
 import { getConversationOrNull } from '@/renderer/pages/conversation/utils/conversationCache';
 import { getConversationCreateErrorMessage } from '@/renderer/pages/conversation/utils/conversationCreateError';
 import GoogleModelSelector from '../platforms/gemini/GoogleModelSelector';
@@ -217,6 +218,14 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
             setStatus={runtimeConfig.setStatus}
             onSetThoughtLevel={handleThoughtLevelSetOption}
           />
+        )}
+        {!isMobile && (
+          <div className='shrink-0'>
+            <SpecHeaderPill
+              projectId={conversation.project_id}
+              activeSpecId={(conversation.extra as { active_spec_id?: string } | undefined)?.active_spec_id}
+            />
+          </div>
         )}
         {!isMobile && (
           <div className='shrink-0'>
@@ -431,6 +440,14 @@ const ChatConversation: React.FC<{
           <AcpRuntimeRestartButton
             conversation_id={conversation.id}
             availability={runtimeReadyConversationId === conversation.id ? 'ready' : 'initializing'}
+          />
+        </div>
+      )}
+      {conversation && !isLegacyReadOnlyConversation && !isMobile && (
+        <div className='shrink-0'>
+          <SpecHeaderPill
+            projectId={conversation.project_id}
+            activeSpecId={(conversation.extra as { active_spec_id?: string } | undefined)?.active_spec_id}
           />
         </div>
       )}

@@ -210,6 +210,12 @@ const GuidPage: React.FC = () => {
         kind: 'builtin',
         source: 'builtin',
       },
+      {
+        name: 'spec',
+        description: t('specs.slashSpecDesc', { defaultValue: 'Spec-Driven Development: /spec new [title] | status | run | analyze' }),
+        kind: 'builtin',
+        source: 'builtin',
+      },
     ],
     [t]
   );

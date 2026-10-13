@@ -99,6 +99,19 @@ import type {
 import type { AgentMetadata } from '@/renderer/utils/model/agentTypes';
 import type { Theme } from '@/common/theme/types';
 import type { AttachFolderRequest, ProjectDetailDto, ProjectEntryDto } from '@/common/types/project';
+import type {
+  CreateSpecRequest,
+  LinkConversationRequest,
+  PatchTaskRequest,
+  SpecDetail,
+  SpecPhase,
+  SpecType,
+  SpecWorkflow,
+  TaskStatus,
+  TransitionPhaseRequest,
+  UpdateSpecFileRequest,
+  WorkspaceSpecSummary,
+} from '@/common/types/specs';
 import type { ChatFileRef, ContentEncoding } from '@/common/types/chatFile';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from '../utils/protocolDetector';
 import {
@@ -601,6 +614,36 @@ export const project = {
   removeFolder: httpDelete<void, { project_id: string; pe_id: string }>(
     (p) => `/api/projects/${encodeURIComponent(p.project_id)}/folders/${encodeURIComponent(p.pe_id)}`
   ),
+  specs: {
+    list: httpGet<WorkspaceSpecSummary[], { project_id: string }>(
+      (p) => `/api/projects/${encodeURIComponent(p.project_id)}/specs`
+    ),
+    create: httpPost<SpecDetail, { project_id: string } & CreateSpecRequest>(
+      (p) => `/api/projects/${encodeURIComponent(p.project_id)}/specs`,
+      (p) => ({ title: p.title, spec_type: p.spec_type, workflow: p.workflow, slug: p.slug })
+    ),
+    get: httpGet<SpecDetail, { project_id: string; spec_id: string }>(
+      (p) => `/api/projects/${encodeURIComponent(p.project_id)}/specs/${encodeURIComponent(p.spec_id)}`
+    ),
+    updateFile: httpPut<SpecDetail, { project_id: string; spec_id: string; filename: string } & UpdateSpecFileRequest>(
+      (p) =>
+        `/api/projects/${encodeURIComponent(p.project_id)}/specs/${encodeURIComponent(p.spec_id)}/files/${encodeURIComponent(p.filename)}`,
+      (p) => ({ content: p.content, expected_mtime: p.expected_mtime })
+    ),
+    patchTask: httpPatch<SpecDetail, { project_id: string; spec_id: string; task_id: string } & PatchTaskRequest>(
+      (p) =>
+        `/api/projects/${encodeURIComponent(p.project_id)}/specs/${encodeURIComponent(p.spec_id)}/tasks/${encodeURIComponent(p.task_id)}`,
+      (p) => ({ status: p.status, expected_mtime: p.expected_mtime })
+    ),
+    transitionPhase: httpPost<SpecDetail, { project_id: string; spec_id: string } & TransitionPhaseRequest>(
+      (p) => `/api/projects/${encodeURIComponent(p.project_id)}/specs/${encodeURIComponent(p.spec_id)}/phase`,
+      (p) => ({ phase: p.phase })
+    ),
+    linkConversation: httpPost<SpecDetail, { project_id: string; spec_id: string } & LinkConversationRequest>(
+      (p) => `/api/projects/${encodeURIComponent(p.project_id)}/specs/${encodeURIComponent(p.spec_id)}/link`,
+      (p) => ({ conversation_id: p.conversation_id })
+    ),
+  },
 };
 
 // ---------------------------------------------------------------------------

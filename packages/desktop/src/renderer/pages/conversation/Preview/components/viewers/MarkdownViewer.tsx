@@ -392,4 +392,5 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   );
 };
 
+export { MarkdownPreview };
 export default MarkdownPreview;

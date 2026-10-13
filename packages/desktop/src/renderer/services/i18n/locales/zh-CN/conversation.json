@@ -687,7 +687,8 @@
     "newDirFailed": "新建目录失败",
     "tabs": {
       "files": "文件",
-      "changes": "变更"
+      "changes": "变更",
+      "specs": "规格"
     },
     "addedToChat": "已将 {{name}} 添加到聊天",
     "imported": "已导入 {{count}} 个文件",

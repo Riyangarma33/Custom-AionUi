@@ -73,8 +73,9 @@
   border-color: var(--color-border-3, rgba(0, 0, 0, 0.15)) !important;
 }
 
-/* Header skills pill: matching 28px geometry with subtle tone step (fill-1) and interactive affordance */
-.header-skills-btn {
+/* Header skills & spec pills: matching 28px geometry with subtle tone step (fill-1) and interactive affordance */
+.header-skills-btn,
+.header-spec-btn {
   height: 28px !important;
   min-height: 28px !important;
   line-height: 26px !important;
@@ -88,7 +89,8 @@
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
 }
 
-.header-skills-btn:hover {
+.header-skills-btn:hover,
+.header-spec-btn:hover {
   background-color: var(--color-fill-2) !important;
   border-color: var(--color-border-3, rgba(0, 0, 0, 0.15)) !important;
 }
@@ -106,13 +108,17 @@
 }
 
 [data-theme='dark'] .header-skills-btn,
-[arco-theme='dark'] .header-skills-btn {
+[arco-theme='dark'] .header-skills-btn,
+[data-theme='dark'] .header-spec-btn,
+[arco-theme='dark'] .header-spec-btn {
   background-color: rgba(255, 255, 255, 0.04) !important;
   border-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 [data-theme='dark'] .header-skills-btn:hover,
-[arco-theme='dark'] .header-skills-btn:hover {
+[arco-theme='dark'] .header-skills-btn:hover,
+[data-theme='dark'] .header-spec-btn:hover,
+[arco-theme='dark'] .header-spec-btn:hover {
   background-color: rgba(255, 255, 255, 0.08) !important;
   border-color: rgba(255, 255, 255, 0.16) !important;
 }

@@ -50,7 +50,7 @@ import { localSelectionItems, mergeFileSelectionItems } from '@/renderer/utils/f
 import { collectChatFileRefs, splitChatFileRefs } from '@/renderer/utils/file/messageFiles';
 import type { AgentModeOption } from '@/renderer/utils/model/agentTypes';
 import { Button, Message, Tag } from '@arco-design/web-react';
-import { Brain, Lightning, Shield } from '@icon-park/react';
+import { Brain, Lightning, ListCheckbox, Shield } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { classifyConversationBusyError } from '../conversationBusyError';
@@ -598,6 +598,15 @@ const AionrsSendBox: React.FC<{
         meta: `${loadedSkills.length} · MCP ${loadedMcpStatuses.length}`,
         onClick: () => {
           emitter.emit('conversation.openSkillsModal', conversation_id);
+        },
+      },
+      {
+        key: 'specs',
+        icon: <ListCheckbox theme='outline' size='16' />,
+        label: t('specs.menuItem', { defaultValue: 'Spec-Driven Development' }),
+        meta: t('specs.menuHint', { defaultValue: '/spec new | run | status' }),
+        onClick: () => {
+          emitter.emit('guid.prefill', { prompt: '/spec ', autoSend: false });
         },
       },
       ...attachEntries,

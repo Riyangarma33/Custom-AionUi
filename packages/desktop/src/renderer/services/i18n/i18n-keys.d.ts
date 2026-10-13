@@ -685,6 +685,7 @@ export type I18nKey =
   | 'conversation.explorer.search.searching'
   | 'conversation.explorer.tabs.changes'
   | 'conversation.explorer.tabs.files'
+  | 'conversation.explorer.tabs.specs'
   | 'conversation.history.archive'
   | 'conversation.history.archiveFailed'
   | 'conversation.history.archiveProject'
