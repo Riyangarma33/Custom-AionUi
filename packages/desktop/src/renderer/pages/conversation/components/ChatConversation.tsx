@@ -223,6 +223,7 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
           <div className='shrink-0'>
             <SpecHeaderPill
               projectId={conversation.project_id}
+              conversationId={conversation.id}
               activeSpecId={(conversation.extra as { active_spec_id?: string } | undefined)?.active_spec_id}
             />
           </div>
@@ -447,6 +448,7 @@ const ChatConversation: React.FC<{
         <div className='shrink-0'>
           <SpecHeaderPill
             projectId={conversation.project_id}
+            conversationId={conversation.id}
             activeSpecId={(conversation.extra as { active_spec_id?: string } | undefined)?.active_spec_id}
           />
         </div>

@@ -235,14 +235,23 @@ const AionrsSendBox: React.FC<{
     setSendBoxHandler(handler);
   }, [setSendBoxHandler, content]);
 
-  // Listen for sendbox.fill event to append text to sendbox
+  // Listen for sendbox.fill event to set or append text to sendbox and focus textarea
   useAddEventListener(
     'sendbox.fill',
     (text: string) => {
-      const prev = contentRef.current;
-      setContentRef.current(prev ? `${prev}${text}` : text);
+      const prev = contentRef.current?.trim();
+      const nextContent = prev ? `${prev}\n${text}` : text;
+      setContentRef.current(nextContent);
+      setContent(nextContent);
+      setTimeout(() => {
+        const textarea = document.querySelector('textarea[data-testid="sendbox-input"], [data-testid="sendbox-input"] textarea, .sendbox-panel textarea, textarea') as HTMLTextAreaElement | null;
+        if (textarea) {
+          textarea.focus();
+          textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+        }
+      }, 50);
     },
-    []
+    [setContent]
   );
 
   // Shared file handling logic

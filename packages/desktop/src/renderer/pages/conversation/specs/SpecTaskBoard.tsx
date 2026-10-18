@@ -8,9 +8,11 @@ import React, { useState } from 'react';
 import { Button, Checkbox, Message, Modal, Tag, Tooltip } from '@arco-design/web-react';
 import { CheckOne, SendOne } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
+import { useParams } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import type { SpecDetail, SpecTask, SpecWave, TaskStatus } from '@/common/types/specs';
 import { emitter } from '@/renderer/utils/emitter';
+import { requestConversationSendBoxPrefill } from '@/renderer/hooks/chat/useSendBoxDraft';
 
 interface SpecTaskBoardProps {
   projectId: string;
@@ -26,6 +28,8 @@ export const SpecTaskBoard: React.FC<SpecTaskBoardProps> = ({
   isMobile,
 }) => {
   const { t } = useTranslation();
+  const { id: routeConvId } = useParams<{ id?: string }>();
+  const activeConversationId = routeConvId || spec.summary.linked_conversation_id;
   const [patchingTaskId, setPatchingTaskId] = useState<string | null>(null);
   const [selectedMobileTask, setSelectedMobileTask] = useState<SpecTask | null>(null);
 
@@ -68,22 +72,31 @@ export const SpecTaskBoard: React.FC<SpecTaskBoardProps> = ({
 
   const handleRunTask = (task: SpecTask) => {
     const prompt = `Execute task ${task.id} (${task.title}) from specification "${spec.summary.title}" (ID: ${spec.summary.id}). Verify against relevant acceptance criteria.`;
+    if (activeConversationId) {
+      requestConversationSendBoxPrefill(activeConversationId, prompt, { mode: 'replace' });
+    }
+    emitter.emit('sendbox.fill', prompt);
     emitter.emit('guid.prefill', { prompt, autoSend: false });
-    emitter.emit('chat.sendPrompt', prompt);
     Message.info(t('specs.taskSentToChat', { defaultValue: 'Task sent to chat input' }));
   };
 
   const handleRunWave = (wave: SpecWave) => {
     const prompt = `Execute Wave ${wave.number} (${wave.title}) from specification "${spec.summary.title}" (ID: ${spec.summary.id}). Work through unfinished tasks in sequence.`;
+    if (activeConversationId) {
+      requestConversationSendBoxPrefill(activeConversationId, prompt, { mode: 'replace' });
+    }
+    emitter.emit('sendbox.fill', prompt);
     emitter.emit('guid.prefill', { prompt, autoSend: false });
-    emitter.emit('chat.sendPrompt', prompt);
     Message.info(t('specs.waveSentToChat', { defaultValue: 'Wave sent to chat input' }));
   };
 
   const handleRunAll = () => {
     const prompt = `Execute all remaining tasks from specification "${spec.summary.title}" (ID: ${spec.summary.id}) wave by wave.`;
+    if (activeConversationId) {
+      requestConversationSendBoxPrefill(activeConversationId, prompt, { mode: 'replace' });
+    }
+    emitter.emit('sendbox.fill', prompt);
     emitter.emit('guid.prefill', { prompt, autoSend: false });
-    emitter.emit('chat.sendPrompt', prompt);
     Message.info(t('specs.allTasksSentToChat', { defaultValue: 'All tasks sent to chat' }));
   };
 
@@ -129,13 +142,15 @@ export const SpecTaskBoard: React.FC<SpecTaskBoardProps> = ({
           </span>
         </div>
         <Button
-          type='outline'
+          type='secondary'
           size='mini'
-          className='shrink-0 !text-11px !px-6px'
-          icon={<SendOne theme='outline' size='12' />}
+          className='shrink-0 !h-22px !px-8px !text-11px !rounded-4px !bg-fill-2 hover:!bg-fill-3 flex items-center gap-4px border border-[var(--bg-3)] transition-colors'
+          icon={<SendOne theme='outline' size='12' className='text-primary-6' />}
           onClick={handleRunAll}
         >
-          {t('specs.runAllTasks', { defaultValue: 'Run All' })}
+          <span className='text-t-primary hover:text-primary-6 font-medium'>
+            {t('specs.runAllTasks', { defaultValue: 'Run All' })}
+          </span>
         </Button>
       </div>
 
@@ -163,13 +178,15 @@ export const SpecTaskBoard: React.FC<SpecTaskBoardProps> = ({
                   </Tag>
                 </div>
                 <Button
-                  type='text'
+                  type='secondary'
                   size='mini'
-                  className='shrink-0 !px-4px !text-11px'
-                  icon={<SendOne theme='outline' size='12' />}
+                  className='shrink-0 !h-22px !px-6px !text-11px !rounded-4px !bg-fill-2 hover:!bg-fill-3 flex items-center gap-4px border border-[var(--bg-3)] transition-colors'
+                  icon={<SendOne theme='outline' size='12' className='text-primary-6' />}
                   onClick={() => handleRunWave(wave)}
                 >
-                  {t('specs.runWave', { defaultValue: 'Run Wave' })}
+                  <span className='text-t-primary hover:text-primary-6 font-medium'>
+                    {t('specs.runWave', { defaultValue: 'Run Wave' })}
+                  </span>
                 </Button>
               </div>
 

@@ -35,7 +35,7 @@ import { chatFileRefPath, uploadFileRef } from '@/common/types/chatFile';
 import { useOpenFileSelector } from '@/renderer/hooks/file/useOpenFileSelector';
 import { appendSpeechTranscript } from '@/renderer/hooks/system/useSpeechInput';
 import { useLiveTranscriptInsertion } from '@/renderer/hooks/system/useLiveTranscriptInsertion';
-import { ArrowRightUp } from '@icon-park/react';
+import { ArrowRightUp, Caution, Checklist, Lightning, ListCheckbox } from '@icon-park/react';
 import { Button, ConfigProvider } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -732,6 +732,98 @@ const GuidPage: React.FC = () => {
             onSelectWorkspace={(dir) => guidInput.setDir(dir)}
             onClearWorkspace={() => guidInput.setDir('')}
           />
+
+          {/* Spec-Driven Development Workflows (Kiro Parity) */}
+          <div className='mt-16px w-full animate-fade-in'>
+            <div className='text-12px font-medium text-t-secondary mb-8px flex items-center justify-between'>
+              <span>{t('guid.sddWorkflowsTitle', { defaultValue: 'Start with a built-in workflow (Spec-Driven Development)' })}</span>
+            </div>
+            <div className='grid grid-cols-1 sm:grid-cols-2 gap-8px'>
+              {/* Spec */}
+              <div
+                role='button'
+                tabIndex={0}
+                className='p-10px rounded-8px border border-[var(--bg-3)] bg-fill-0 hover:border-primary-6 hover:bg-fill-1 cursor-pointer transition-all flex items-start gap-10px group shadow-xs'
+                onClick={() => {
+                  guidInput.setInput('Use Spec-Driven Development (SDD) to build feature: ');
+                  guidInput.handleTextareaFocus();
+                }}
+              >
+                <ListCheckbox theme='outline' size='18' className='shrink-0 text-primary-6 mt-2px' />
+                <div className='flex flex-col min-w-0'>
+                  <span className='font-medium text-13px text-t-primary group-hover:text-primary-6 transition-colors'>
+                    Spec
+                  </span>
+                  <span className='text-11px text-t-secondary truncate'>
+                    Structured feature development (EARS, Design, Tasks)
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Spec */}
+              <div
+                role='button'
+                tabIndex={0}
+                className='p-10px rounded-8px border border-[var(--bg-3)] bg-fill-0 hover:border-primary-6 hover:bg-fill-1 cursor-pointer transition-all flex items-start gap-10px group shadow-xs'
+                onClick={() => {
+                  guidInput.setInput('Use Quick Spec workflow to clarify requirements and generate checklist for: ');
+                  guidInput.handleTextareaFocus();
+                }}
+              >
+                <Lightning theme='outline' size='18' className='shrink-0 text-amber-500 mt-2px' />
+                <div className='flex flex-col min-w-0'>
+                  <span className='font-medium text-13px text-t-primary group-hover:text-primary-6 transition-colors'>
+                    Quick Spec
+                  </span>
+                  <span className='text-11px text-t-secondary truncate'>
+                    Fast spec workflow: clarify, then auto-generate
+                  </span>
+                </div>
+              </div>
+
+              {/* Bug Fix */}
+              <div
+                role='button'
+                tabIndex={0}
+                className='p-10px rounded-8px border border-[var(--bg-3)] bg-fill-0 hover:border-primary-6 hover:bg-fill-1 cursor-pointer transition-all flex items-start gap-10px group shadow-xs'
+                onClick={() => {
+                  guidInput.setInput('Use Structured Bug Fix workflow to investigate, diagnose, and resolve: ');
+                  guidInput.handleTextareaFocus();
+                }}
+              >
+                <Caution theme='outline' size='18' className='shrink-0 text-red-500 mt-2px' />
+                <div className='flex flex-col min-w-0'>
+                  <span className='font-medium text-13px text-t-primary group-hover:text-primary-6 transition-colors'>
+                    Bug Fix
+                  </span>
+                  <span className='text-11px text-t-secondary truncate'>
+                    Investigate, diagnose, and resolve bugs (bugfix.md)
+                  </span>
+                </div>
+              </div>
+
+              {/* Plan */}
+              <div
+                role='button'
+                tabIndex={0}
+                className='p-10px rounded-8px border border-[var(--bg-3)] bg-fill-0 hover:border-primary-6 hover:bg-fill-1 cursor-pointer transition-all flex items-start gap-10px group shadow-xs'
+                onClick={() => {
+                  guidInput.setInput('Plan-only mode: break down implementation plan without making file changes for: ');
+                  guidInput.handleTextareaFocus();
+                }}
+              >
+                <Checklist theme='outline' size='18' className='shrink-0 text-green-500 mt-2px' />
+                <div className='flex flex-col min-w-0'>
+                  <span className='font-medium text-13px text-t-primary group-hover:text-primary-6 transition-colors'>
+                    Plan
+                  </span>
+                  <span className='text-11px text-t-secondary truncate'>
+                    Break ideas down into an architecture plan without code changes
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {selectedAssistantPrompts.length > 0 ? (
             <div className='mt-18px w-full animate-fade-in ps-20px'>

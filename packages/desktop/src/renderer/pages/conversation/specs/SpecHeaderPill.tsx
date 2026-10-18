@@ -13,22 +13,36 @@ import { SpecTaskDrawer } from './SpecTaskDrawer';
 
 interface SpecHeaderPillProps {
   projectId?: string;
+  conversationId?: string;
   activeSpecId?: string;
 }
 
-export const SpecHeaderPill: React.FC<SpecHeaderPillProps> = ({ projectId, activeSpecId }) => {
+export const SpecHeaderPill: React.FC<SpecHeaderPillProps> = ({ projectId, conversationId, activeSpecId }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const { data: spec } = useSWR(
-    projectId && activeSpecId ? `header-spec/${projectId}/${activeSpecId}` : null,
+  // If activeSpecId is not explicitly set in conversation.extra, find any spec in the project linked to this conversation
+  const { data: projectSpecs } = useSWR(
+    projectId && !activeSpecId && conversationId ? `project-specs/${projectId}` : null,
     async () => {
-      if (!projectId || !activeSpecId) return null;
-      return ipcBridge.project.specs.get.invoke({ project_id: projectId, spec_id: activeSpecId });
+      if (!projectId) return [];
+      return ipcBridge.project.specs.list.invoke({ project_id: projectId });
     },
     { revalidateOnFocus: true }
   );
 
-  if (!projectId || !activeSpecId || !spec) {
+  const effectiveSpecId =
+    activeSpecId || projectSpecs?.find((s) => s.linked_conversation_id === conversationId)?.id;
+
+  const { data: spec } = useSWR(
+    projectId && effectiveSpecId ? `header-spec/${projectId}/${effectiveSpecId}` : null,
+    async () => {
+      if (!projectId || !effectiveSpecId) return null;
+      return ipcBridge.project.specs.get.invoke({ project_id: projectId, spec_id: effectiveSpecId });
+    },
+    { revalidateOnFocus: true }
+  );
+
+  if (!projectId || !effectiveSpecId || !spec) {
     return null;
   }
 
@@ -75,7 +89,7 @@ export const SpecHeaderPill: React.FC<SpecHeaderPillProps> = ({ projectId, activ
         visible={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         projectId={projectId}
-        specId={activeSpecId}
+        specId={effectiveSpecId}
       />
     </>
   );
