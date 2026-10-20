@@ -5,11 +5,15 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Button, Input, Message, Modal, Spin, Tag } from '@arco-design/web-react';
-import { Check, Edit, Left, PreviewOpen } from '@icon-park/react';
+import { Button, Input, Message, Modal, Progress, Spin, Tag, Tooltip } from '@arco-design/web-react';
+import { Check, CheckOne, CloseSmall, Copy, Edit, Left, PreviewOpen } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
+import { useParams } from 'react-router-dom';
+import { useSWRConfig } from 'swr';
 import { ipcBridge } from '@/common';
-import type { SpecDetail, SpecPhase } from '@/common/types/specs';
+import type { TChatConversation } from '@/common/config/storage';
+import { getRelativeSpecPath, type SpecDetail, type SpecPhase } from '@/common/types/specs';
+import { copyText } from '@/renderer/utils/ui/clipboard';
 import { SpecTaskBoard } from './SpecTaskBoard';
 import MarkdownPreview from '@/renderer/pages/conversation/Preview/components/viewers/MarkdownViewer';
 
@@ -24,6 +28,19 @@ type SpecSubTab = 'overview' | 'requirements' | 'design' | 'tasks';
 
 const PHASES: SpecPhase[] = ['requirements', 'design', 'tasks', 'executing', 'completed'];
 
+const formatWorkflow = (workflow: string) => {
+  switch (workflow) {
+    case 'requirements_first':
+      return 'Requirements-First';
+    case 'design_first':
+      return 'Design-First';
+    case 'quick_spec':
+      return 'Quick Spec';
+    default:
+      return workflow;
+  }
+};
+
 export const SpecDetailPanel: React.FC<SpecDetailPanelProps> = ({
   projectId,
   specId,
@@ -31,9 +48,70 @@ export const SpecDetailPanel: React.FC<SpecDetailPanelProps> = ({
   isMobile,
 }) => {
   const { t } = useTranslation();
+  const { mutate: globalMutate } = useSWRConfig();
+  const { id: routeConvId } = useParams<{ id?: string }>();
   const [spec, setSpec] = useState<SpecDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [subTab, setSubTab] = useState<SpecSubTab>('tasks');
+
+  const isCurrentChatLinked = Boolean(
+    routeConvId && spec?.summary.linked_conversation_id && spec.summary.linked_conversation_id === routeConvId
+  );
+
+  const handleLinkToCurrentChat = async () => {
+    if (!routeConvId || !spec) return;
+    try {
+      const updated = await ipcBridge.project.specs.linkConversation.invoke({
+        project_id: projectId,
+        spec_id: spec.summary.id,
+        conversation_id: routeConvId,
+      });
+      await ipcBridge.conversation.update.invoke({
+        id: routeConvId,
+        updates: {
+          extra: {
+            active_spec_id: spec.summary.id,
+          },
+        } as unknown as Partial<TChatConversation>,
+      }).catch(() => {});
+      setSpec(updated);
+      void globalMutate(`project-specs/${projectId}`);
+      void globalMutate(`header-spec/${projectId}/${spec.summary.id}`);
+      void globalMutate((key) => typeof key === 'string' && key.startsWith(`header-spec/${projectId}`));
+      Message.success(t('specs.linkedSuccess', { defaultValue: 'Linked to current conversation' }));
+    } catch (err: unknown) {
+      Message.error(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleUnlinkChat = async () => {
+    if (!spec) return;
+    try {
+      const prevLinkedId = spec.summary.linked_conversation_id;
+      const updated = await ipcBridge.project.specs.linkConversation.invoke({
+        project_id: projectId,
+        spec_id: spec.summary.id,
+        conversation_id: undefined,
+      });
+      if (prevLinkedId) {
+        await ipcBridge.conversation.update.invoke({
+          id: prevLinkedId,
+          updates: {
+            extra: {
+              active_spec_id: null,
+            },
+          } as unknown as Partial<TChatConversation>,
+        }).catch(() => {});
+      }
+      setSpec(updated);
+      void globalMutate(`project-specs/${projectId}`);
+      void globalMutate(`header-spec/${projectId}/${spec.summary.id}`);
+      void globalMutate((key) => typeof key === 'string' && key.startsWith(`header-spec/${projectId}`));
+      Message.success(t('specs.unlinkedSuccess', { defaultValue: 'Conversation unlinked' }));
+    } catch (err: unknown) {
+      Message.error(err instanceof Error ? err.message : String(err));
+    }
+  };
 
   // Markdown Editor state
   const [editMode, setEditMode] = useState(false);
@@ -298,26 +376,118 @@ export const SpecDetailPanel: React.FC<SpecDetailPanelProps> = ({
         )}
 
         {subTab === 'overview' && (
-          <div className='p-16px flex flex-col gap-12px text-13px text-t-primary'>
-            <div className='rounded-8px border border-[var(--bg-3)] p-12px flex flex-col gap-6px'>
-              <span className='font-semibold text-14px'>{t('specs.metadata', { defaultValue: 'Spec Metadata' })}</span>
-              <div className='flex items-center justify-between text-12px text-t-secondary'>
-                <span>Location:</span>
-                <span className='font-mono'>{spec.summary.directory_path}</span>
+          <div className='p-10px flex flex-col gap-10px text-13px text-t-primary'>
+            <div className='rounded-8px border border-[var(--bg-3)] bg-fill-0 p-10px flex flex-col gap-8px shadow-xs'>
+              <span className='font-semibold text-13px text-t-primary'>{t('specs.metadata', { defaultValue: 'Spec Metadata' })}</span>
+
+              {/* Location */}
+              <div className='flex flex-col gap-4px text-12px text-t-secondary'>
+                <span className='font-medium text-t-primary'>{t('specs.location', { defaultValue: 'Location' })}:</span>
+                <div className='flex items-center gap-6px bg-fill-2 px-8px py-4px rounded-6px border border-[var(--bg-3)] min-w-0'>
+                  <span
+                    className='font-mono text-11px text-t-primary truncate flex-1 min-w-0 select-all'
+                    title={spec.summary.directory_path}
+                  >
+                    {getRelativeSpecPath(spec.summary)}
+                  </span>
+                  <Tooltip content={t('common.copy', { defaultValue: 'Copy path' })} mini>
+                    <Button
+                      type='text'
+                      size='mini'
+                      className='!p-2px text-t-secondary hover:text-t-primary shrink-0'
+                      icon={<Copy theme='outline' size='12' />}
+                      onClick={() => {
+                        const rel = getRelativeSpecPath(spec.summary);
+                        void copyText(rel)
+                          .then(() => Message.success(t('common.copied', { defaultValue: 'Copied' })))
+                          .catch(() => Message.error(t('common.copyFailed', { defaultValue: 'Failed to copy' })));
+                      }}
+                    />
+                  </Tooltip>
+                </div>
               </div>
+
+              {/* Workflow */}
               <div className='flex items-center justify-between text-12px text-t-secondary'>
-                <span>Workflow:</span>
-                <span>{spec.summary.workflow}</span>
+                <span>{t('specs.workflowLabel', { defaultValue: 'Workflow' })}:</span>
+                <Tag size='small' color='arcoblue'>
+                  {formatWorkflow(spec.summary.workflow)}
+                </Tag>
               </div>
+
+              {/* Current Phase */}
               <div className='flex items-center justify-between text-12px text-t-secondary'>
-                <span>Progress:</span>
-                <span>
-                  {spec.summary.completed_tasks} of {spec.summary.total_tasks} tasks completed
-                </span>
+                <span>{t('specs.phaseLabel', { defaultValue: 'Current Phase' })}:</span>
+                <Tag size='small' color='blue' className='capitalize'>
+                  {spec.summary.current_phase}
+                </Tag>
               </div>
-              <div className='flex items-center justify-between text-12px text-t-secondary'>
-                <span>Linked Conversation:</span>
-                <span>{spec.summary.linked_conversation_id || 'None'}</span>
+
+              {/* Progress */}
+              {(() => {
+                const total = spec.summary.total_tasks;
+                const completed = spec.summary.completed_tasks;
+                const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+                return (
+                  <div className='flex flex-col gap-4px text-12px text-t-secondary pt-2px'>
+                    <div className='flex items-center justify-between'>
+                      <span>{t('specs.progressLabel', { defaultValue: 'Progress' })}:</span>
+                      <span className='font-medium text-t-primary'>
+                        {completed} / {total} ({percent}%)
+                      </span>
+                    </div>
+                    <Progress
+                      percent={percent}
+                      size='mini'
+                      status={total > 0 && completed === total ? 'success' : 'normal'}
+                    />
+                  </div>
+                );
+              })()}
+
+              {/* Linked Conversation */}
+              <div className='flex flex-col gap-4px text-12px text-t-secondary pt-6px border-t border-[var(--bg-3)]'>
+                <div className='flex items-center justify-between'>
+                  <span>{t('specs.linkedConversation', { defaultValue: 'Linked Chat' })}:</span>
+                  <div className='flex items-center gap-4px min-w-0'>
+                    {isCurrentChatLinked ? (
+                      <Tag size='small' color='green' className='flex items-center gap-2px'>
+                        <CheckOne theme='filled' size='11' />
+                        <span>{t('specs.currentChat', { defaultValue: 'Current Chat' })}</span>
+                      </Tag>
+                    ) : spec.summary.linked_conversation_id ? (
+                      <span className='font-mono text-11px font-medium text-t-primary truncate max-w-100px' title={spec.summary.linked_conversation_id}>
+                        {spec.summary.linked_conversation_id}
+                      </span>
+                    ) : (
+                      <span className='text-11px opacity-60'>{t('common.none', { defaultValue: 'None' })}</span>
+                    )}
+
+                    {spec.summary.linked_conversation_id && (
+                      <Tooltip content={t('specs.unlinkChatTooltip', { defaultValue: 'Unlink from conversation' })} mini>
+                        <Button
+                          type='text'
+                          size='mini'
+                          className='!p-2px text-t-secondary hover:text-red-500 shrink-0'
+                          icon={<CloseSmall theme='outline' size='14' />}
+                          onClick={handleUnlinkChat}
+                        />
+                      </Tooltip>
+                    )}
+                  </div>
+                </div>
+                {!isCurrentChatLinked && routeConvId && (
+                  <Button
+                    type='secondary'
+                    size='mini'
+                    className='!h-22px !mt-4px !text-11px !rounded-4px !bg-fill-2 hover:!bg-fill-3 border border-[var(--bg-3)]'
+                    onClick={handleLinkToCurrentChat}
+                  >
+                    {spec.summary.linked_conversation_id
+                      ? t('specs.linkToCurrentChatInstead', { defaultValue: 'Link to this chat instead' })
+                      : t('specs.linkToCurrentChat', { defaultValue: 'Link to this chat' })}
+                  </Button>
+                )}
               </div>
             </div>
           </div>

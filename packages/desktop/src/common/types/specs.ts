@@ -78,3 +78,17 @@ export interface TransitionPhaseRequest {
 export interface LinkConversationRequest {
   conversation_id?: string;
 }
+
+export const getRelativeSpecPath = (summary: {
+  directory_path?: string;
+  location_type?: SpecLocationType;
+  id: string;
+}): string => {
+  if (summary.directory_path) {
+    const matched = summary.directory_path.match(/\.(aion|kiro|specs)[\/\\].*$/);
+    if (matched) return matched[0].replace(/\\/g, '/');
+  }
+  const loc = summary.location_type || 'aion';
+  const folder = loc === 'openspec' || (loc as string) === 'open_spec' ? '.specs' : `.${loc}/specs`;
+  return `${folder}/${summary.id}`;
+};

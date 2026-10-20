@@ -10,7 +10,7 @@ import { ListCheckbox, Plus, Search } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import { ipcBridge } from '@/common';
-import type { SpecDetail, WorkspaceSpecSummary } from '@/common/types/specs';
+import { getRelativeSpecPath, type SpecDetail, type WorkspaceSpecSummary } from '@/common/types/specs';
 import { NewSpecModal } from './NewSpecModal';
 import { SpecDetailPanel } from './SpecDetailPanel';
 
@@ -173,9 +173,11 @@ export const SpecsListPanel: React.FC<SpecsListPanelProps> = ({ projectId, isMob
               <Progress percent={percent} size='mini' status={percent === 100 ? 'success' : 'normal'} />
 
               {/* Footer info: location & date */}
-              <div className='flex items-center justify-between text-10px text-t-secondary pt-2px'>
-                <span className='font-mono opacity-70'>.{spec.location_type}/specs/{spec.id}</span>
-                <span>{new Date(spec.updated_at).toLocaleDateString()}</span>
+              <div className='flex items-center justify-between text-10px text-t-secondary pt-2px min-w-0'>
+                <span className='font-mono opacity-70 truncate max-w-160px' title={getRelativeSpecPath(spec)}>
+                  {getRelativeSpecPath(spec)}
+                </span>
+                <span className='shrink-0'>{new Date(spec.updated_at).toLocaleDateString()}</span>
               </div>
             </div>
           );

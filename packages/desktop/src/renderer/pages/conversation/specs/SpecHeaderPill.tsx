@@ -42,7 +42,7 @@ export const SpecHeaderPill: React.FC<SpecHeaderPillProps> = ({ projectId, conve
     { revalidateOnFocus: true }
   );
 
-  if (!projectId || !effectiveSpecId || !spec) {
+  if (!projectId || !effectiveSpecId || !spec || (conversationId && spec.summary.linked_conversation_id !== conversationId)) {
     return null;
   }
 
