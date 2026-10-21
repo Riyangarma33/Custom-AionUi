@@ -10,7 +10,7 @@ import { ListCheckbox, Plus, Search } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import { ipcBridge } from '@/common';
-import { getRelativeSpecPath, type SpecDetail, type WorkspaceSpecSummary } from '@/common/types/specs';
+import { getRelativeSpecPath } from '@/common/types/specs';
 import { NewSpecModal } from './NewSpecModal';
 import { SpecDetailPanel } from './SpecDetailPanel';
 
