@@ -62,11 +62,12 @@ const useModeModeList = (
           bedrock_config,
         });
         let modelList = res.models.map((v) => {
-          // Handle both string and object formats (Bedrock returns objects with id and name)
+          // Handle both string and object formats (Bedrock returns objects with id and name;
+          // OpenAI-compatible returns objects with id, context_length, etc. where name may be absent)
           if (typeof v === 'string') {
             return { label: v, value: v };
           } else {
-            return { label: v.name, value: v.id };
+            return { label: v.name || v.id, value: v.id };
           }
         });
 

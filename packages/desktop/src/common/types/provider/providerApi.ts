@@ -63,8 +63,8 @@ export interface UpdateProviderRequest {
  * `POST /api/providers/fetch-models`.
  */
 export interface FetchModelsResponse {
-  /** Mixed-shape array: bare id strings or `{ id, name }` pairs. */
-  models: Array<string | { id: string; name: string }>;
+  /** Mixed-shape array: bare id strings or `{ id, name?, context_length?, max_completion_tokens? }` pairs. */
+  models: Array<string | { id: string; name?: string; context_length?: number; max_completion_tokens?: number }>;
   /** Present when backend auto-corrected the provider's base_url. */
   fixed_base_url?: string;
 }

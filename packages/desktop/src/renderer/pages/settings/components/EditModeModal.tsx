@@ -84,7 +84,9 @@ const EditModeModal = ModalHOC<{ data?: IProvider; onChange(data: IProvider): vo
           platform: data?.platform || 'gemini',
         });
         const models = res.models.map((v) =>
-          typeof v === 'string' ? { label: v, value: v } : { label: v.name, value: v.id }
+          typeof v === 'string'
+            ? { label: v, value: v }
+            : { label: (v as any).name || (v as any).id, value: (v as any).id }
         );
         // Refresh the dropdown candidates only — selection is untouched.
         void modelListState.mutate({ models }, false);
@@ -358,7 +360,7 @@ const EditModeModal = ModalHOC<{ data?: IProvider; onChange(data: IProvider): vo
                           if (typeof v === 'string') {
                             return { label: v, value: v };
                           } else {
-                            return { label: v.name, value: v.id };
+                            return { label: (v as any).name || (v as any).id, value: (v as any).id };
                           }
                         }) || [];
                       // Update the model list state manually

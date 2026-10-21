@@ -689,7 +689,7 @@ const AddPlatformModal = ModalHOC<{
                               if (typeof v === 'string') {
                                 return { label: v, value: v };
                               } else {
-                                return { label: v.name, value: v.id };
+                                return { label: (v as any).name || (v as any).id, value: (v as any).id };
                               }
                             }) || [];
                           // Update the model list state manually
