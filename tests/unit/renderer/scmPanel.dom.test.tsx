@@ -603,13 +603,14 @@ describe('ScmPanel section framework (VS Code SCM parity)', () => {
     expect(document.querySelector('[data-scm-section-header="repositories"]')).toBeNull();
   });
 
-  it('renders both section headers for a multi-repo project', async () => {
+  it('renders section headers for a multi-repo project', async () => {
     installPort({ repositories: twoRepos, firstFrames: twoRepoFrames });
     render(<ScmPanel projectId='p1' />);
 
     await screen.findByText('a.ts');
     expect(document.querySelector('[data-scm-section-header="repositories"]')).not.toBeNull();
     expect(document.querySelector('[data-scm-section-header="changes"]')).not.toBeNull();
+    expect(document.querySelector('[data-scm-section-header="graph"]')).not.toBeNull();
   });
 
   it('collapsing the Changes section hides its body but keeps the header visible', async () => {
@@ -628,7 +629,7 @@ describe('ScmPanel section framework (VS Code SCM parity)', () => {
     expect(screen.queryByText('a.ts')).toBeNull();
   });
 
-  it('shows a divider only when both sections are open', async () => {
+  it('shows dividers between open sections', async () => {
     installPort({ repositories: twoRepos, firstFrames: twoRepoFrames });
     render(<ScmPanel projectId='p1' />);
 
@@ -636,6 +637,7 @@ describe('ScmPanel section framework (VS Code SCM parity)', () => {
     expect(document.querySelector('[data-scm-section-divider]')).not.toBeNull();
 
     fireEvent.click(document.querySelector('[data-scm-section-header="changes"]') as HTMLElement);
+    fireEvent.click(document.querySelector('[data-scm-section-header="graph"]') as HTMLElement);
     expect(document.querySelector('[data-scm-section-divider]')).toBeNull();
   });
 });

@@ -45,11 +45,13 @@ import { useTranslation } from 'react-i18next';
 
 import { usePreviewContext } from '../Preview';
 import { discardAllTargets, ScmChangesView, stageAllTargets } from './ScmChangesView';
+import { ScmGraphView } from './ScmGraphView';
 import { ScmSection, ScmSectionDivider } from './ScmSection';
 import {
   diffAnchors,
   resourceKey,
   resourceName,
+  type ContentRef,
   type ScmActionKind,
   type ScmRepository,
   type ScmResource,
@@ -72,6 +74,7 @@ import { type ScmActionReport, useScmActions } from './useScmActions';
 /** Section ids — the persistence keys and the extensible section registry. */
 const SECTION_REPOSITORIES = 'repositories';
 const SECTION_CHANGES = 'changes';
+const SECTION_GRAPH = 'graph';
 
 /** Height of a section header row, in px (mirror of ScmSection's `h-24px`). Used to
  *  bound section body heights so at least one header row always stays on screen. */
@@ -123,6 +126,14 @@ export const ScmPanel: React.FC<ScmPanelProps> = ({ projectId }) => {
     [view.repositories, view.selectedRepoId]
   );
 
+  const [selectedCommitDiff, setSelectedCommitDiff] = React.useState<{
+    repoId: string;
+    resource: ScmResource;
+    from: ContentRef;
+    to: ContentRef;
+    commitShortSha: string;
+  } | null>(null);
+
   // Diff selection is scoped to the shown repo: only its rows are on screen, and a
   // repo switch clears `selectedResource` (see `setSelectedRepo`), so a resolved row
   // always belongs to `selectedRepo`. A whole-frame replace that drops the row
@@ -134,6 +145,13 @@ export const ScmPanel: React.FC<ScmPanelProps> = ({ projectId }) => {
     );
     return resource ? { repo: selectedRepo, resource } : null;
   }, [selectedRepo, view.statuses, view.selectedResource]);
+
+  // When a working tree resource is selected, clear any historical commit diff
+  useEffect(() => {
+    if (selected) {
+      setSelectedCommitDiff(null);
+    }
+  }, [selected]);
 
   if (view.loadState === 'loading' && view.repositories.length === 0) {
     return <PanelNotice text={t('conversation.explorer.scm.loading')} />;
@@ -172,6 +190,7 @@ export const ScmPanel: React.FC<ScmPanelProps> = ({ projectId }) => {
         multiRepo={multiRepo}
         onRepoSelect={setSelectedRepo}
         onAction={actions.run}
+        onSelectCommitDiff={setSelectedCommitDiff}
         busy={actions.busy}
         failedRowKeys={actions.report?.failedRowKeys ?? []}
       />
@@ -185,6 +204,18 @@ export const ScmPanel: React.FC<ScmPanelProps> = ({ projectId }) => {
           repoId={selected.repo.repo_id}
           staging={selected.repo.capabilities.staging}
           resource={selected.resource}
+        />
+      )}
+      {/* Selecting a touched file from a historical commit in the Graph section opens
+          its commit diff in the preview panel. */}
+      {selectedCommitDiff && (
+        <ScmDiffPreviewBridge
+          repoId={selectedCommitDiff.repoId}
+          staging={false}
+          resource={selectedCommitDiff.resource}
+          fromOverride={selectedCommitDiff.from}
+          toOverride={selectedCommitDiff.to}
+          titleOverride={`${resourceName(selectedCommitDiff.resource)} (${selectedCommitDiff.commitShortSha})`}
         />
       )}
     </div>
@@ -209,12 +240,30 @@ const ScmSectionStack: React.FC<{
   multiRepo: boolean;
   onRepoSelect: (repoId: string) => void;
   onAction: (action: ScmActionKind, repoId: string, resources: ScmResource[]) => void;
+  onSelectCommitDiff: (diffTarget: {
+    repoId: string;
+    resource: ScmResource;
+    from: ContentRef;
+    to: ContentRef;
+    commitShortSha: string;
+  }) => void;
   busy: boolean;
   failedRowKeys: string[];
-}> = ({ view, ui, selectedRepo, multiRepo, onRepoSelect, onAction, busy, failedRowKeys }) => {
+}> = ({
+  view,
+  ui,
+  selectedRepo,
+  multiRepo,
+  onRepoSelect,
+  onAction,
+  onSelectCommitDiff,
+  busy,
+  failedRowKeys,
+}) => {
   const { t } = useTranslation();
   const reposCollapsed = ui.collapsed[SECTION_REPOSITORIES] === true;
   const changesCollapsed = ui.collapsed[SECTION_CHANGES] === true;
+  const graphCollapsed = ui.collapsed[SECTION_GRAPH] === true;
 
   // Measure the stack's own pixel height so a sized section can default to a fraction
   // of it and so drags can be clamped to "leave at least the other headers on screen".
@@ -231,42 +280,48 @@ const ScmSectionStack: React.FC<{
     return () => ro.disconnect();
   }, []);
 
-  // Bottom-anchored stack model. Screen order is fixed (repositories on top, changes
-  // below, a future graph further below). The FIRST open section is the "filler": it
-  // flexes to take whatever space the sized sections below leave. Every other open
-  // section keeps its own persisted body height and anchors from the bottom up. This
-  // is what lets the Changes header be dragged all the way to full height (repositories
-  // shrinks to just its header) or down to just its own header (repositories fills).
+  // Bottom-anchored 3-section stack model. Screen order: Repositories -> Changes -> Graph.
+  // The FIRST open section is the "filler": it flexes to take whatever space the sized
+  // sections below leave. Every other open section keeps its own persisted body height
+  // and anchors from the bottom up.
   const repoOpen = multiRepo && !reposCollapsed;
-  // With only two sections today, the filler is repositories when it is open, else the
-  // changes section fills. Generalizes to "first open section fills" when graph lands.
-  const changesIsFiller = !repoOpen;
+  const changesOpen = !changesCollapsed;
+  const graphOpen = !graphCollapsed;
 
-  // Body height a bottom-anchored (non-filler) section uses. Absent stored value ⇒ a
-  // fraction of the panel. Always clamped so the filler above keeps at least its header
-  // visible (min body) and so the sized body itself never collapses below a usable min.
+  const repoIsFiller = repoOpen;
+  const changesIsFiller = !repoOpen && changesOpen;
+  const graphIsFiller = !repoOpen && !changesOpen && graphOpen;
+
+  // Body height a bottom-anchored (non-filler) section uses.
   const sizedBodyHeight = (id: string): number => {
     const stored = ui.heights[id];
-    const fallback = stackPx > 0 ? Math.round(stackPx * SECTION_DEFAULT_FRACTION) : 240;
+    const defaultFraction = id === SECTION_GRAPH ? 0.45 : SECTION_DEFAULT_FRACTION;
+    const fallback = stackPx > 0 ? Math.round(stackPx * defaultFraction) : 220;
     const desired = stored ?? fallback;
-    // Reserve room above for the filler's header (and its own header is outside the body).
-    const upperReserve = SECTION_HEADER_PX + SECTION_MIN_BODY_PX;
+    // Reserve room above for the open headers + minimum bodies
+    const upperReserve = SECTION_HEADER_PX * 2 + SECTION_MIN_BODY_PX;
     const maxBody = stackPx > 0 ? Math.max(SECTION_MIN_BODY_PX, stackPx - upperReserve) : desired;
     return Math.max(SECTION_MIN_BODY_PX, Math.min(desired, maxBody));
   };
 
-  // Dragging the divider above the Changes section: up (negative cumulative delta)
-  // grows the Changes body, down shrinks it; the filler (repositories) absorbs the
-  // inverse. `totalDeltaY` is measured from the drag start, so the base height is
-  // captured once when the drag begins — reading `ui.heights` on every move would
-  // hit the stale closure captured at pointerdown and drop all but the last step.
+  // Dragging the divider above Changes section
   const changesDragBase = React.useRef<number | null>(null);
   const onChangesDividerDrag = (totalDeltaY: number): void => {
     changesDragBase.current ??= ui.heights[SECTION_CHANGES] ?? sizedBodyHeight(SECTION_CHANGES);
-    setSectionHeight(SECTION_CHANGES, changesDragBase.current - totalDeltaY);
+    setSectionHeight(SECTION_CHANGES, Math.max(SECTION_MIN_BODY_PX, changesDragBase.current - totalDeltaY));
   };
   const onChangesDividerDragEnd = (): void => {
     changesDragBase.current = null;
+  };
+
+  // Dragging the divider above Graph section
+  const graphDragBase = React.useRef<number | null>(null);
+  const onGraphDividerDrag = (totalDeltaY: number): void => {
+    graphDragBase.current ??= ui.heights[SECTION_GRAPH] ?? sizedBodyHeight(SECTION_GRAPH);
+    setSectionHeight(SECTION_GRAPH, Math.max(SECTION_MIN_BODY_PX, graphDragBase.current - totalDeltaY));
+  };
+  const onGraphDividerDragEnd = (): void => {
+    graphDragBase.current = null;
   };
 
   const viewMode: ScmViewMode = ui.viewMode;
@@ -360,6 +415,41 @@ const ScmSectionStack: React.FC<{
           actions={changesActions}
         >
           {changesBody}
+        </ScmSection>
+      </div>
+      {/* Divider above Graph: visible when graph is open and at least one section above it is open */}
+      {graphOpen && (changesOpen || repoOpen) && (
+        <ScmSectionDivider
+          onDrag={onGraphDividerDrag}
+          onDragEnd={onGraphDividerDragEnd}
+          onDoubleReset={() => clearSectionHeight(SECTION_GRAPH)}
+        />
+      )}
+      <div
+        data-scm-section-slot={SECTION_GRAPH}
+        className={
+          graphIsFiller && !graphCollapsed ? 'flex-1 min-h-0 flex flex-col' : 'flex-shrink-0 flex flex-col'
+        }
+        style={
+          graphIsFiller || graphCollapsed
+            ? undefined
+            : { height: SECTION_HEADER_PX + sizedBodyHeight(SECTION_GRAPH) }
+        }
+      >
+        <ScmSection
+          id={SECTION_GRAPH}
+          title={t('conversation.explorer.scm.sections.graph', 'Graph')}
+          collapsed={graphCollapsed}
+          onToggleCollapsed={() => setSectionCollapsed(SECTION_GRAPH, !graphCollapsed)}
+        >
+          <div className='flex-1 min-h-0 overflow-hidden flex flex-col'>
+            <ScmGraphView
+              repo={selectedRepo}
+              repositories={view.repositories}
+              onSelectRepo={onRepoSelect}
+              onOpenFileDiff={onSelectCommitDiff}
+            />
+          </div>
         </ScmSection>
       </div>
     </div>
@@ -461,12 +551,17 @@ const ScmDiffPreviewBridge: React.FC<{
   repoId: string;
   staging: boolean;
   resource: ScmResource;
-}> = ({ repoId, staging, resource }) => {
+  fromOverride?: ContentRef;
+  toOverride?: ContentRef;
+  titleOverride?: string;
+}> = ({ repoId, staging, resource, fromOverride, toOverride, titleOverride }) => {
   const { t } = useTranslation();
   const { openPreview } = usePreviewContext();
   const name = resourceName(resource);
   const { pe_id: peId, relative_path: relativePath } = resource.file;
-  const { from, to } = diffAnchors(resource, staging);
+  const defaultAnchors = diffAnchors(resource, staging);
+  const from = fromOverride ?? defaultAnchors.from;
+  const to = toOverride ?? defaultAnchors.to;
 
   useEffect(() => {
     let cancelled = false;
@@ -485,7 +580,7 @@ const ScmDiffPreviewBridge: React.FC<{
             : result.patch && result.patch.length > 0
               ? result.patch
               : t('conversation.explorer.scm.diff.empty');
-        openPreview(body, 'diff', { file_name: name, title: name });
+        openPreview(body, 'diff', { file_name: name, title: titleOverride ?? name });
       } catch {
         // Passive bridge: a failed diff fetch leaves the selection intact and opens
         // nothing. Error surfacing is the action-report path's job, not this effect's.
@@ -494,7 +589,7 @@ const ScmDiffPreviewBridge: React.FC<{
     return () => {
       cancelled = true;
     };
-  }, [repoId, peId, relativePath, from, to, name, openPreview, t]);
+  }, [repoId, peId, relativePath, from, to, name, titleOverride, openPreview, t]);
 
   return null;
 };

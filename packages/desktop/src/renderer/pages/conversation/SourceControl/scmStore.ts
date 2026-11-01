@@ -33,8 +33,10 @@ import type {
   ContentRef,
   ScmActionFailure,
   ScmActionKind,
+  ScmCommitDetails,
   ScmFileRef,
   ScmHead,
+  ScmHistoryResult,
   ScmRepositoriesChanged,
   ScmRepository,
   ScmResource,
@@ -72,6 +74,8 @@ export type ScmPort = {
   unsubscribe: (repoIds: string[]) => void;
   status: (repoId: string) => Promise<ScmStatus>;
   diff: (params: { repository: string; file: ScmFileRef; from: ContentRef; to: ContentRef }) => Promise<ScmDiffResult>;
+  history?: (params: { repository: string; branch?: string; limit?: number; offset?: number }) => Promise<ScmHistoryResult>;
+  commitDetails?: (params: { repository: string; commit_id: string }) => Promise<ScmCommitDetails>;
   /** One of `scm/stage` | `scm/unstage` | `scm/discard`, chosen by `action`. */
   act: (action: ScmActionKind, params: { repository: string; files: ScmFileRef[] }) => Promise<ScmActionResult>;
 };
@@ -652,6 +656,28 @@ export const fetchScmDiff = async (params: {
 }): Promise<ScmDiffResult> => {
   if (!port) throw new Error('scm port not configured');
   return port.diff(params);
+};
+
+/** Request commit history (`scm/history`). Request-driven: not part of the subscription. */
+export const fetchScmHistory = async (params: {
+  repository: string;
+  branch?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<ScmHistoryResult> => {
+  if (!port) throw new Error('scm port not configured');
+  if (!port.history) return { commits: [], branches: [] };
+  return port.history(params);
+};
+
+/** Request details and touched files for a commit (`scm/commitDetails`). */
+export const fetchScmCommitDetails = async (params: {
+  repository: string;
+  commit_id: string;
+}): Promise<ScmCommitDetails> => {
+  if (!port) throw new Error('scm port not configured');
+  if (!port.commitDetails) throw new Error('history not supported');
+  return port.commitDetails(params);
 };
 
 /**

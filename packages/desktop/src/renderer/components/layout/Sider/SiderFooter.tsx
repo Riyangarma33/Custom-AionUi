@@ -62,6 +62,8 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
       <div className={classNames('flex', collapsed ? 'flex-col gap-2px' : 'items-center gap-2px')}>
         <Tooltip {...siderTooltipProps} content={isSettings ? t('common.back') : t('common.settings')} position='right'>
           <div
+            role='button'
+            tabIndex={0}
             onClick={onSettingsClick}
             className={classNames(
               'group h-34px flex items-center rd-0.5rem cursor-pointer transition-colors',
@@ -108,6 +110,8 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
         {showThemeToggle && (
           <Tooltip {...siderTooltipProps} content={themeTooltip} position='right'>
             <div
+              role='button'
+              tabIndex={0}
               onClick={onThemeToggle}
               data-testid='theme-toggle'
               className={classNames(

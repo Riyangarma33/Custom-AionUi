@@ -29,7 +29,50 @@ export type ScmFileRef = {
 };
 
 /** Neutral content anchor for diff/original. `staged` needs `staging`. */
-export type ContentRef = 'working' | 'committed' | 'staged';
+export type ContentRef = 'working' | 'committed' | 'staged' | `commit:${string}` | string;
+
+export type ScmRefKind = 'branch' | 'remote' | 'tag' | 'head';
+
+export type ScmRefLabel = {
+  name: string;
+  kind: ScmRefKind;
+  is_head?: boolean;
+};
+
+export type ScmBranchRef = {
+  name: string;
+  is_current: boolean;
+  is_remote: boolean;
+  target_sha?: string;
+};
+
+export type ScmCommitNode = {
+  sha: string;
+  short_sha: string;
+  author_name: string;
+  author_email: string;
+  author_timestamp: number;
+  committer_name: string;
+  committer_email: string;
+  committer_timestamp: number;
+  subject: string;
+  message: string;
+  parents: string[];
+  refs: ScmRefLabel[];
+  is_head: boolean;
+};
+
+export type ScmHistoryResult = {
+  commits: ScmCommitNode[];
+  total?: number;
+  branches: ScmBranchRef[];
+  current_branch?: string;
+};
+
+export type ScmCommitDetails = {
+  commit: ScmCommitNode;
+  files: ScmResource[];
+};
 
 /** Optional provider capabilities; UI is gated on these (source-control.md). */
 export type ScmCapabilities = {

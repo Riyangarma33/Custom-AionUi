@@ -20,7 +20,7 @@ import { wsEmitter, wsSend } from '@/common/adapter/httpBridge';
 
 import type { MonitorTransport } from '../explorer/monitorClient';
 import { MonitorClient } from '../explorer/monitorClient';
-import type { ScmActionKind, ScmRepository, ScmStatus } from './scmModel';
+import type { ScmActionKind, ScmCommitDetails, ScmHistoryResult, ScmRepository, ScmStatus } from './scmModel';
 import {
   applyScmNotification,
   configureScmStore,
@@ -75,6 +75,8 @@ export function initScmRuntime(): MonitorClient {
     },
     status: async (repoId) => (await scm.request('scm/status', { repository: repoId })) as ScmStatus,
     diff: async (params) => (await scm.request('scm/diff', params)) as ScmDiffResult,
+    history: async (params) => (await scm.request('scm/history', params)) as ScmHistoryResult,
+    commitDetails: async (params) => (await scm.request('scm/commitDetails', params)) as ScmCommitDetails,
     // One method per action — the wire has no "action" parameter, and that is what
     // makes a failure attributable to a side without a per-failure flag.
     act: async (action, params) => (await scm.request(ACTION_METHOD[action], params)) as ScmActionResult,
