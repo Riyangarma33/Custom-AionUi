@@ -527,30 +527,30 @@ const CommitRow: React.FC<{
   };
 
   const contextMenu = (
-    <Menu>
+    <Menu className='min-w-180px'>
       <Menu.Item key='copy-short' onClick={() => copyHash(false)}>
         <div className='flex items-center gap-6px text-12px'>
-          <Copy theme='outline' size='14' />
-          <span>{t('conversation.explorer.scm.copyShortHash', 'Copy Short Hash')}</span>
+          <Copy theme='outline' size='14' className='text-t-secondary flex-shrink-0' />
+          <span className='text-t-primary'>{t('conversation.explorer.scm.copyShortHash', 'Copy Short Hash')}</span>
         </div>
       </Menu.Item>
       <Menu.Item key='copy-full' onClick={() => copyHash(true)}>
         <div className='flex items-center gap-6px text-12px'>
-          <Copy theme='outline' size='14' />
-          <span>{t('conversation.explorer.scm.copyFullHash', 'Copy Full Hash')}</span>
+          <Copy theme='outline' size='14' className='text-t-secondary flex-shrink-0' />
+          <span className='text-t-primary'>{t('conversation.explorer.scm.copyFullHash', 'Copy Full Hash')}</span>
         </div>
       </Menu.Item>
       <Menu.Item key='copy-msg' onClick={copyMessage}>
         <div className='flex items-center gap-6px text-12px'>
-          <MessageOne theme='outline' size='14' />
-          <span>{t('conversation.explorer.scm.copyMessage', 'Copy Commit Message')}</span>
+          <MessageOne theme='outline' size='14' className='text-t-secondary flex-shrink-0' />
+          <span className='text-t-primary'>{t('conversation.explorer.scm.copyMessage', 'Copy Commit Message')}</span>
         </div>
       </Menu.Item>
       <MenuDivider />
       <Menu.Item key='ask-agent' onClick={onAskAgent}>
         <div className='flex items-center gap-6px text-12px text-[var(--color-primary-6)]'>
-          <Robot theme='outline' size='14' />
-          <span>{t('conversation.explorer.scm.askAgentExplain', 'Ask Agent: Explain Commit')}</span>
+          <Robot theme='outline' size='14' className='flex-shrink-0' />
+          <span className='font-medium'>{t('conversation.explorer.scm.askAgentExplain', 'Ask Agent: Explain Commit')}</span>
         </div>
       </Menu.Item>
     </Menu>

@@ -5,7 +5,7 @@
  */
 
 import { Button, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
-import { BranchTwo, Down, FolderCode, Refresh } from '@icon-park/react';
+import { BranchTwo, Down, FolderCode, Link, Refresh } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -61,19 +61,25 @@ export const ScmGraphToolbar: React.FC<ScmGraphToolbarProps> = ({
 
   // Repo dropdown list
   const repoMenu = (
-    <Menu selectedKeys={[selectedRepoId]} onClickMenuItem={onSelectRepo}>
+    <Menu selectedKeys={[selectedRepoId]} onClickMenuItem={onSelectRepo} className='min-w-220px max-w-340px'>
       {repositories.map((repo) => (
         <Menu.Item key={repo.repo_id}>
           <div className='flex items-center gap-6px text-12px'>
-            <FolderCode theme='outline' size='14' className='text-t-tertiary flex-shrink-0' />
-            <span className='truncate font-medium'>{repo.pe_name || repo.label}</span>
+            {repo.is_submodule ? (
+              <Link theme='outline' size='12' className='text-cyan-600 dark:text-cyan-400 flex-shrink-0 ms-6px' />
+            ) : (
+              <FolderCode theme='outline' size='14' className='text-t-secondary flex-shrink-0' />
+            )}
+            <span className='truncate font-medium text-t-primary'>{repo.pe_name || repo.label}</span>
             {repo.is_submodule && (
-              <span className='px-4px py-0.5px rd-2px bg-[var(--color-fill-2)] text-t-tertiary text-10px'>
+              <span className='inline-flex items-center px-4px py-0.5px rd-2px bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 text-10px font-medium font-mono flex-shrink-0'>
                 submodule
               </span>
             )}
             {repo.head?.name && (
-              <span className='text-t-tertiary text-11px font-mono ms-auto'>({repo.head.name})</span>
+              <span className='text-t-secondary text-11px font-mono ms-auto flex-shrink-0 ps-8px'>
+                ({repo.head.name})
+              </span>
             )}
           </div>
         </Menu.Item>
@@ -83,28 +89,36 @@ export const ScmGraphToolbar: React.FC<ScmGraphToolbarProps> = ({
 
   // Branch filter dropdown list
   const branchMenu = (
-    <Menu selectedKeys={[selectedBranch]} onClickMenuItem={onSelectBranch}>
+    <Menu selectedKeys={[selectedBranch]} onClickMenuItem={onSelectBranch} className='min-w-200px max-w-320px'>
       <Menu.Item key='current'>
         <div className='flex items-center gap-6px text-12px'>
-          <BranchTwo theme='outline' size='14' className='text-t-tertiary flex-shrink-0' />
-          <span>{t('conversation.explorer.scm.currentBranch', 'Current Branch')}</span>
-          {currentBranch && <span className='text-t-tertiary text-11px font-mono'>({currentBranch})</span>}
+          <BranchTwo theme='outline' size='14' className='text-[var(--color-primary)] flex-shrink-0' />
+          <span className='font-medium text-t-primary'>{t('conversation.explorer.scm.currentBranch', 'Current Branch')}</span>
+          {currentBranch && (
+            <span className='text-t-secondary text-11px font-mono ms-auto flex-shrink-0 ps-6px'>
+              ({currentBranch})
+            </span>
+          )}
         </div>
       </Menu.Item>
       <Menu.Item key='all'>
         <div className='flex items-center gap-6px text-12px'>
-          <BranchTwo theme='outline' size='14' className='text-t-tertiary flex-shrink-0' />
-          <span>{t('conversation.explorer.scm.allBranches', 'All Branches')}</span>
+          <BranchTwo theme='outline' size='14' className='text-t-secondary flex-shrink-0' />
+          <span className='text-t-primary'>{t('conversation.explorer.scm.allBranches', 'All Branches')}</span>
         </div>
       </Menu.Item>
       {branches.length > 0 && <MenuDivider />}
       {branches.map((b) => (
         <Menu.Item key={b.name}>
           <div className='flex items-center gap-6px text-12px'>
-            <BranchTwo theme='outline' size='14' className='text-t-tertiary flex-shrink-0' />
-            <span className='font-mono truncate'>{b.name}</span>
+            <BranchTwo
+              theme='outline'
+              size='14'
+              className={b.is_current ? 'text-[var(--color-primary)] flex-shrink-0' : 'text-t-secondary flex-shrink-0'}
+            />
+            <span className='font-mono text-t-primary truncate'>{b.name}</span>
             {b.is_current && (
-              <span className='px-4px py-0.5px rd-2px bg-[var(--color-primary-light-1)] text-[var(--color-primary-6)] text-10px ms-auto'>
+              <span className='inline-flex items-center px-4px py-0.5px rd-2px bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-10px font-medium font-mono ms-auto flex-shrink-0'>
                 HEAD
               </span>
             )}
