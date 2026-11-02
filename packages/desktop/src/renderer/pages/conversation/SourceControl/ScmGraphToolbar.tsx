@@ -116,8 +116,15 @@ export const ScmGraphToolbar: React.FC<ScmGraphToolbarProps> = ({
 
   const branchDisplayLabel =
     selectedBranch === 'current'
+      ? currentBranch || t('conversation.explorer.scm.currentBranch', 'Current Branch')
+      : selectedBranch === 'all'
+        ? t('conversation.explorer.scm.allBranches', 'All Branches')
+        : selectedBranch;
+
+  const branchTooltip =
+    selectedBranch === 'current'
       ? currentBranch
-        ? `${t('conversation.explorer.scm.currentBranch', 'Current')}: ${currentBranch}`
+        ? `${t('conversation.explorer.scm.currentBranch', 'Current Branch')}: ${currentBranch}`
         : t('conversation.explorer.scm.currentBranch', 'Current Branch')
       : selectedBranch === 'all'
         ? t('conversation.explorer.scm.allBranches', 'All Branches')
@@ -126,20 +133,20 @@ export const ScmGraphToolbar: React.FC<ScmGraphToolbarProps> = ({
   return (
     <div
       data-scm-graph-toolbar
-      className='flex-shrink-0 flex items-center justify-between gap-6px px-8px py-3px border-b border-[var(--color-border-1)] bg-[var(--color-bg-2)] min-h-28px text-12px'
+      className='flex-shrink-0 flex items-center justify-between gap-4px px-8px py-3px border-b border-[var(--color-border-1)] bg-[var(--color-bg-2)] min-h-28px text-12px overflow-hidden'
     >
-      <div className='flex items-center gap-6px min-w-0 flex-1'>
+      <div className='flex items-center gap-4px min-w-0 flex-1 overflow-hidden'>
         {/* Repo selector dropdown chip (shown when multi-repo or for clarity) */}
         {repositories.length > 1 && (
           <Dropdown droplist={repoMenu} trigger='click' position='bl'>
             <button
               type='button'
               data-scm-graph-repo-chip
-              className='flex items-center gap-4px px-6px py-1px rd-4px border border-[var(--color-border-2)] bg-[var(--color-bg-1)] hover:bg-[var(--color-fill-2)] text-t-primary text-11px max-w-130px transition-colors cursor-pointer'
+              className='flex items-center gap-3px px-5px py-1px rd-4px border border-[var(--color-border-2)] bg-[var(--color-bg-1)] hover:bg-[var(--color-fill-2)] text-t-primary text-11px min-w-0 max-w-105px flex-shrink transition-colors cursor-pointer overflow-hidden'
               title={repoLabel}
             >
               <FolderCode theme='outline' size='12' className='text-t-tertiary flex-shrink-0' />
-              <span className='truncate'>{repoLabel}</span>
+              <span className='truncate min-w-0 flex-1 text-left'>{repoLabel}</span>
               <Down theme='outline' size='10' className='text-t-tertiary flex-shrink-0' />
             </button>
           </Dropdown>
@@ -150,17 +157,17 @@ export const ScmGraphToolbar: React.FC<ScmGraphToolbarProps> = ({
           <button
             type='button'
             data-scm-graph-branch-chip
-            className='flex items-center gap-4px px-6px py-1px rd-4px border border-[var(--color-border-2)] bg-[var(--color-bg-1)] hover:bg-[var(--color-fill-2)] text-t-primary text-11px max-w-160px transition-colors cursor-pointer'
-            title={branchDisplayLabel}
+            className='flex items-center gap-3px px-5px py-1px rd-4px border border-[var(--color-border-2)] bg-[var(--color-bg-1)] hover:bg-[var(--color-fill-2)] text-t-primary text-11px min-w-0 max-w-120px flex-shrink transition-colors cursor-pointer overflow-hidden'
+            title={branchTooltip}
           >
             <BranchTwo theme='outline' size='12' className='text-t-tertiary flex-shrink-0' />
-            <span className='truncate'>{branchDisplayLabel}</span>
+            <span className='truncate min-w-0 flex-1 text-left'>{branchDisplayLabel}</span>
             <Down theme='outline' size='10' className='text-t-tertiary flex-shrink-0' />
           </button>
         </Dropdown>
       </div>
 
-      <div className='flex items-center gap-2px flex-shrink-0'>
+      <div className='flex items-center gap-2px flex-shrink-0 ms-auto'>
         {/* Locate HEAD button */}
         <Tooltip content={t('conversation.explorer.scm.locateHead', 'Locate HEAD')} mini position='br'>
           <Button
