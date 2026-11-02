@@ -42,6 +42,7 @@ import {
 } from '@icon-park/react';
 import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import classNames from 'classnames';
 
 import { usePreviewContext } from '../Preview';
 import { discardAllTargets, ScmChangesView, stageAllTargets } from './ScmChangesView';
@@ -280,45 +281,72 @@ const ScmSectionStack: React.FC<{
     return () => ro.disconnect();
   }, []);
 
-  // Bottom-anchored 3-section stack model. Screen order: Repositories -> Changes -> Graph.
-  // The FIRST open section is the "filler": it flexes to take whatever space the sized
-  // sections below leave. Every other open section keeps its own persisted body height
-  // and anchors from the bottom up.
+  // 3-section stack layout model (VS Code SCM parity):
+  // Screen order: Repositories (multi-repo only) -> Changes -> Graph.
+  // Changes is the primary work area and serves as the flex filler when open.
+  // Repositories (top) and Graph (bottom) are sized sections with persisted/default heights.
+  // If Changes is collapsed, Graph becomes the filler if open, else Repositories fills.
   const repoOpen = multiRepo && !reposCollapsed;
   const changesOpen = !changesCollapsed;
   const graphOpen = !graphCollapsed;
 
-  const repoIsFiller = repoOpen;
-  const changesIsFiller = !repoOpen && changesOpen;
-  const graphIsFiller = !repoOpen && !changesOpen && graphOpen;
+  const changesIsFiller = changesOpen;
+  const graphIsFiller = !changesOpen && graphOpen;
+  const repoIsFiller = !changesOpen && !graphOpen && repoOpen;
 
-  // Body height a bottom-anchored (non-filler) section uses.
-  const sizedBodyHeight = (id: string): number => {
-    const stored = ui.heights[id];
-    const defaultFraction = id === SECTION_GRAPH ? 0.45 : SECTION_DEFAULT_FRACTION;
-    const fallback = stackPx > 0 ? Math.round(stackPx * defaultFraction) : 220;
-    const desired = stored ?? fallback;
-    // Reserve room above for the open headers + minimum bodies
-    const upperReserve = SECTION_HEADER_PX * 2 + SECTION_MIN_BODY_PX;
-    const maxBody = stackPx > 0 ? Math.max(SECTION_MIN_BODY_PX, stackPx - upperReserve) : desired;
-    return Math.max(SECTION_MIN_BODY_PX, Math.min(desired, maxBody));
+  const showDivider1 = multiRepo && repoOpen && (changesOpen || graphOpen);
+  const showDivider2 = graphOpen && (changesOpen || (multiRepo && repoOpen));
+
+  const totalHeadersPx = (multiRepo ? SECTION_HEADER_PX : 0) + SECTION_HEADER_PX + SECTION_HEADER_PX;
+  const totalDividersPx = (showDivider1 ? 1 : 0) + (showDivider2 ? 1 : 0);
+  const totalBodySpace = Math.max(SECTION_MIN_BODY_PX, stackPx - totalHeadersPx - totalDividersPx);
+
+  // Default and clamped body heights
+  const defaultRepoBody = stackPx > 0 ? Math.min(180, Math.max(80, Math.round(stackPx * 0.22))) : 140;
+  const reserveForOtherFromRepo =
+    (changesOpen ? SECTION_MIN_BODY_PX : 0) + (graphOpen && !graphIsFiller ? SECTION_MIN_BODY_PX : 0);
+  const maxRepoBody = Math.max(SECTION_MIN_BODY_PX, totalBodySpace - reserveForOtherFromRepo);
+  const repoBodyHeight = Math.max(
+    SECTION_MIN_BODY_PX,
+    Math.min(maxRepoBody, ui.heights[SECTION_REPOSITORIES] ?? defaultRepoBody)
+  );
+
+  const defaultGraphBody = stackPx > 0 ? Math.min(320, Math.max(140, Math.round(stackPx * 0.35))) : 240;
+  const reserveForOtherFromGraph =
+    (changesOpen ? SECTION_MIN_BODY_PX : 0) + (repoOpen && !repoIsFiller ? repoBodyHeight : 0);
+  const maxGraphBody = Math.max(SECTION_MIN_BODY_PX, totalBodySpace - reserveForOtherFromGraph);
+  const graphBodyHeight = Math.max(
+    SECTION_MIN_BODY_PX,
+    Math.min(maxGraphBody, ui.heights[SECTION_GRAPH] ?? defaultGraphBody)
+  );
+
+  const defaultChangesBody = stackPx > 0 ? Math.round(stackPx * 0.45) : 240;
+  const changesBodyHeight = Math.max(
+    SECTION_MIN_BODY_PX,
+    Math.min(totalBodySpace, ui.heights[SECTION_CHANGES] ?? defaultChangesBody)
+  );
+
+  // Dragging divider 1 (between Repositories and Changes)
+  const repoDragBase = React.useRef<number | null>(null);
+  const onRepoDividerDrag = (totalDeltaY: number): void => {
+    repoDragBase.current ??= repoBodyHeight;
+    setSectionHeight(
+      SECTION_REPOSITORIES,
+      Math.max(SECTION_MIN_BODY_PX, Math.min(maxRepoBody, repoDragBase.current + totalDeltaY))
+    );
+  };
+  const onRepoDividerDragEnd = (): void => {
+    repoDragBase.current = null;
   };
 
-  // Dragging the divider above Changes section
-  const changesDragBase = React.useRef<number | null>(null);
-  const onChangesDividerDrag = (totalDeltaY: number): void => {
-    changesDragBase.current ??= ui.heights[SECTION_CHANGES] ?? sizedBodyHeight(SECTION_CHANGES);
-    setSectionHeight(SECTION_CHANGES, Math.max(SECTION_MIN_BODY_PX, changesDragBase.current - totalDeltaY));
-  };
-  const onChangesDividerDragEnd = (): void => {
-    changesDragBase.current = null;
-  };
-
-  // Dragging the divider above Graph section
+  // Dragging divider 2 (between Changes and Graph)
   const graphDragBase = React.useRef<number | null>(null);
   const onGraphDividerDrag = (totalDeltaY: number): void => {
-    graphDragBase.current ??= ui.heights[SECTION_GRAPH] ?? sizedBodyHeight(SECTION_GRAPH);
-    setSectionHeight(SECTION_GRAPH, Math.max(SECTION_MIN_BODY_PX, graphDragBase.current - totalDeltaY));
+    graphDragBase.current ??= graphBodyHeight;
+    setSectionHeight(
+      SECTION_GRAPH,
+      Math.max(SECTION_MIN_BODY_PX, Math.min(maxGraphBody, graphDragBase.current - totalDeltaY))
+    );
   };
   const onGraphDividerDragEnd = (): void => {
     graphDragBase.current = null;
@@ -357,14 +385,21 @@ const ScmSectionStack: React.FC<{
   );
 
   return (
-    <div data-scm-section-stack ref={stackRef} className='flex-1 min-h-0 flex flex-col'>
+    <div data-scm-section-stack ref={stackRef} className='flex-1 min-h-0 flex flex-col overflow-hidden'>
       {multiRepo && (
         <div
           data-scm-section-slot={SECTION_REPOSITORIES}
-          // Repositories is the filler when open (flex-1); when collapsed it is just
-          // its header (flex-shrink-0). It never carries a stored height — it always
-          // takes the space the sized sections below leave.
-          className={repoOpen ? 'flex-1 min-h-0 flex flex-col' : 'flex-shrink-0 flex flex-col'}
+          className={classNames(
+            'overflow-hidden flex flex-col',
+            repoIsFiller ? 'flex-1 min-h-0' : 'flex-shrink-0'
+          )}
+          style={
+            repoIsFiller
+              ? { minHeight: SECTION_HEADER_PX + SECTION_MIN_BODY_PX }
+              : reposCollapsed
+                ? { height: SECTION_HEADER_PX, minHeight: SECTION_HEADER_PX }
+                : { height: SECTION_HEADER_PX + repoBodyHeight, minHeight: SECTION_HEADER_PX + SECTION_MIN_BODY_PX }
+          }
         >
           <ScmSection
             id={SECTION_REPOSITORIES}
@@ -384,27 +419,25 @@ const ScmSectionStack: React.FC<{
           </ScmSection>
         </div>
       )}
-      {/* Divider above Changes: only meaningful when the section above it (repositories)
-          is open and Changes is sized (not itself the filler / not collapsed). */}
-      {repoOpen && !changesCollapsed && (
+      {showDivider1 && (
         <ScmSectionDivider
-          onDrag={onChangesDividerDrag}
-          onDragEnd={onChangesDividerDragEnd}
-          onDoubleReset={() => clearSectionHeight(SECTION_CHANGES)}
+          onDrag={onRepoDividerDrag}
+          onDragEnd={onRepoDividerDragEnd}
+          onDoubleReset={() => clearSectionHeight(SECTION_REPOSITORIES)}
         />
       )}
       <div
         data-scm-section-slot={SECTION_CHANGES}
-        // Changes fills only when it is the first open section (repositories collapsed
-        // or single-repo); otherwise it is bottom-anchored at its stored/derived height.
-        // Collapsed ⇒ just its header.
-        className={
-          changesIsFiller && !changesCollapsed ? 'flex-1 min-h-0 flex flex-col' : 'flex-shrink-0 flex flex-col'
-        }
+        className={classNames(
+          'overflow-hidden flex flex-col',
+          changesIsFiller ? 'flex-1 min-h-0' : 'flex-shrink-0'
+        )}
         style={
-          changesIsFiller || changesCollapsed
-            ? undefined
-            : { height: SECTION_HEADER_PX + sizedBodyHeight(SECTION_CHANGES) }
+          changesIsFiller
+            ? { minHeight: SECTION_HEADER_PX + SECTION_MIN_BODY_PX }
+            : changesCollapsed
+              ? { height: SECTION_HEADER_PX, minHeight: SECTION_HEADER_PX }
+              : { height: SECTION_HEADER_PX + changesBodyHeight, minHeight: SECTION_HEADER_PX + SECTION_MIN_BODY_PX }
         }
       >
         <ScmSection
@@ -417,8 +450,7 @@ const ScmSectionStack: React.FC<{
           {changesBody}
         </ScmSection>
       </div>
-      {/* Divider above Graph: visible when graph is open and at least one section above it is open */}
-      {graphOpen && (changesOpen || repoOpen) && (
+      {showDivider2 && (
         <ScmSectionDivider
           onDrag={onGraphDividerDrag}
           onDragEnd={onGraphDividerDragEnd}
@@ -427,13 +459,16 @@ const ScmSectionStack: React.FC<{
       )}
       <div
         data-scm-section-slot={SECTION_GRAPH}
-        className={
-          graphIsFiller && !graphCollapsed ? 'flex-1 min-h-0 flex flex-col' : 'flex-shrink-0 flex flex-col'
-        }
+        className={classNames(
+          'overflow-hidden flex flex-col',
+          graphIsFiller ? 'flex-1 min-h-0' : 'flex-shrink-0'
+        )}
         style={
-          graphIsFiller || graphCollapsed
-            ? undefined
-            : { height: SECTION_HEADER_PX + sizedBodyHeight(SECTION_GRAPH) }
+          graphIsFiller
+            ? { minHeight: SECTION_HEADER_PX + SECTION_MIN_BODY_PX }
+            : graphCollapsed
+              ? { height: SECTION_HEADER_PX, minHeight: SECTION_HEADER_PX }
+              : { height: SECTION_HEADER_PX + graphBodyHeight, minHeight: SECTION_HEADER_PX + SECTION_MIN_BODY_PX }
         }
       >
         <ScmSection
