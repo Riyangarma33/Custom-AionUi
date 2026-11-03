@@ -595,20 +595,20 @@ describe('ScmPanel section framework (VS Code SCM parity)', () => {
     expect(document.querySelector('[data-scm-section-header="changes"]')).not.toBeNull();
   });
 
-  it('does not render a Repositories section for a single-repo project', async () => {
+  it('does not render a top repo bar for a single-repo project', async () => {
     installPort({ repositories: [repo()], firstFrames: { 'scm:pe1': status('scm:pe1', 1, [resource('a.ts')]) } });
     render(<ScmPanel projectId='p1' />);
 
     await screen.findByText('a.ts');
-    expect(document.querySelector('[data-scm-section-header="repositories"]')).toBeNull();
+    expect(document.querySelector('[data-scm-top-repo-bar]')).toBeNull();
   });
 
-  it('renders section headers for a multi-repo project', async () => {
+  it('renders top repo bar and 2-section headers for a multi-repo project', async () => {
     installPort({ repositories: twoRepos, firstFrames: twoRepoFrames });
     render(<ScmPanel projectId='p1' />);
 
     await screen.findByText('a.ts');
-    expect(document.querySelector('[data-scm-section-header="repositories"]')).not.toBeNull();
+    expect(document.querySelector('[data-scm-top-repo-bar]')).not.toBeNull();
     expect(document.querySelector('[data-scm-section-header="changes"]')).not.toBeNull();
     expect(document.querySelector('[data-scm-section-header="graph"]')).not.toBeNull();
   });
@@ -629,7 +629,7 @@ describe('ScmPanel section framework (VS Code SCM parity)', () => {
     expect(screen.queryByText('a.ts')).toBeNull();
   });
 
-  it('shows dividers between open sections', async () => {
+  it('shows divider when both sections are open', async () => {
     installPort({ repositories: twoRepos, firstFrames: twoRepoFrames });
     render(<ScmPanel projectId='p1' />);
 
@@ -637,7 +637,6 @@ describe('ScmPanel section framework (VS Code SCM parity)', () => {
     expect(document.querySelector('[data-scm-section-divider]')).not.toBeNull();
 
     fireEvent.click(document.querySelector('[data-scm-section-header="changes"]') as HTMLElement);
-    fireEvent.click(document.querySelector('[data-scm-section-header="graph"]') as HTMLElement);
     expect(document.querySelector('[data-scm-section-divider]')).toBeNull();
   });
 });

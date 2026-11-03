@@ -194,8 +194,6 @@ function formatRelativeTime(seconds: number): string {
 
 export type ScmGraphViewProps = {
   repo: ScmRepository;
-  repositories: ScmRepository[];
-  onSelectRepo: (repoId: string) => void;
   onOpenFileDiff: (diffTarget: {
     repoId: string;
     resource: ScmResource;
@@ -207,8 +205,6 @@ export type ScmGraphViewProps = {
 
 export const ScmGraphView: React.FC<ScmGraphViewProps> = ({
   repo,
-  repositories,
-  onSelectRepo,
   onOpenFileDiff,
 }) => {
   const { t } = useTranslation();
@@ -350,9 +346,6 @@ export const ScmGraphView: React.FC<ScmGraphViewProps> = ({
   return (
     <div data-scm-graph-view className='flex-1 min-h-0 flex flex-col bg-[var(--color-bg-1)]'>
       <ScmGraphToolbar
-        repositories={repositories}
-        selectedRepoId={repo.repo_id}
-        onSelectRepo={onSelectRepo}
         branches={branches}
         currentBranch={currentBranch}
         selectedBranch={selectedBranch}
