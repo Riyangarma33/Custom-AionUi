@@ -5,11 +5,12 @@
  */
 
 import { Button, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
-import { BranchTwo, Down, FolderCode, Link, Refresh } from '@icon-park/react';
-import React from 'react';
+import { BranchTwo, Down, FolderCode, Link, Refresh, RightBranchOne } from '@icon-park/react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { ScmBranchRef, ScmRepository } from './scmModel';
+import { groupRepositories, type ScmRepoNode } from './scmRepoTree';
 
 export const LocateHeadIcon: React.FC<{ size?: number; className?: string }> = ({ size = 14, className }) => (
   <svg
@@ -58,32 +59,131 @@ export const ScmGraphToolbar: React.FC<ScmGraphToolbarProps> = ({
 
   const selectedRepo = repositories.find((r) => r.repo_id === selectedRepoId) ?? repositories[0];
   const repoLabel = selectedRepo?.pe_name || selectedRepo?.label || selectedRepoId;
+  const isSelectedSubmodule = selectedRepo?.is_submodule;
+
+  const groups = useMemo(() => groupRepositories(repositories), [repositories]);
+  const primaryGroups = useMemo(
+    () => groups.filter((g) => g.kind === 'primary' || g.kind === 'orphanWorktree'),
+    [groups]
+  );
+  const orphanSubmoduleGroups = useMemo(
+    () => groups.filter((g) => g.kind === 'orphanSubmodule'),
+    [groups]
+  );
+
+  const countSubmodules = (nodes: ScmRepoNode[]): number =>
+    nodes.reduce((acc, node) => acc + 1 + countSubmodules(node.submodules), 0);
+
+  const totalSubmodules = useMemo(() => {
+    let count = 0;
+    for (const g of primaryGroups) count += countSubmodules(g.submodules);
+    for (const g of orphanSubmoduleGroups) count += 1 + countSubmodules(g.submodules);
+    return count;
+  }, [primaryGroups, orphanSubmoduleGroups]);
+
+  const renderSubmoduleNodes = (nodes: ScmRepoNode[], parentName?: string, depth = 0): React.ReactNode => {
+    return nodes.map((subNode) => {
+      const sub = subNode.repo;
+      const rawName = sub.pe_name || sub.label;
+      const displayName =
+        depth > 0 && parentName && rawName.startsWith(parentName + '/')
+          ? rawName.slice(parentName.length + 1)
+          : rawName;
+
+      return (
+        <React.Fragment key={sub.repo_id}>
+          <Menu.Item key={sub.repo_id}>
+            <div
+              className='flex items-center gap-6px text-12px'
+              style={{ paddingLeft: `${depth * 14}px` }}
+            >
+              {depth > 0 && (
+                <span className='text-t-tertiary font-mono text-11px select-none flex-shrink-0 leading-none'>↳</span>
+              )}
+              <Link theme='outline' size='12' className='text-t-secondary flex-shrink-0' />
+              <span className='truncate text-t-primary'>{displayName}</span>
+              {sub.gitlink_diverged && (
+                <span className='px-3px py-0.5px rd-2px bg-amber-500/15 text-amber-600 dark:text-amber-400 text-9px font-medium font-mono flex-shrink-0'>
+                  diverged
+                </span>
+              )}
+              {sub.head?.name && (
+                <span className='text-t-secondary text-11px font-mono ms-auto flex-shrink-0 ps-8px'>
+                  ({sub.head.name})
+                </span>
+              )}
+            </div>
+          </Menu.Item>
+          {subNode.submodules.length > 0 &&
+            renderSubmoduleNodes(subNode.submodules, rawName, depth + 1)}
+        </React.Fragment>
+      );
+    });
+  };
 
   // Repo dropdown list
   const repoMenu = (
-    <Menu selectedKeys={[selectedRepoId]} onClickMenuItem={onSelectRepo} className='min-w-220px max-w-340px'>
-      {repositories.map((repo) => (
-        <Menu.Item key={repo.repo_id}>
-          <div className='flex items-center gap-6px text-12px'>
-            {repo.is_submodule ? (
-              <Link theme='outline' size='12' className='text-cyan-600 dark:text-cyan-400 flex-shrink-0 ms-6px' />
-            ) : (
+    <Menu selectedKeys={[selectedRepoId]} onClickMenuItem={onSelectRepo} className='min-w-220px max-w-360px max-h-380px overflow-y-auto'>
+      {totalSubmodules > 0 && (
+        <div className='px-10px pt-6px pb-2px text-10px font-semibold uppercase tracking-wider text-t-tertiary select-none'>
+          {t('conversation.explorer.scm.sections.repositories', 'Repositories')}
+        </div>
+      )}
+      {primaryGroups.map((g) => (
+        <React.Fragment key={g.repo.repo_id}>
+          <Menu.Item key={g.repo.repo_id}>
+            <div className='flex items-center gap-6px text-12px'>
               <FolderCode theme='outline' size='14' className='text-t-secondary flex-shrink-0' />
-            )}
-            <span className='truncate font-medium text-t-primary'>{repo.pe_name || repo.label}</span>
-            {repo.is_submodule && (
-              <span className='inline-flex items-center px-4px py-0.5px rd-2px bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 text-10px font-medium font-mono flex-shrink-0'>
-                submodule
-              </span>
-            )}
-            {repo.head?.name && (
-              <span className='text-t-secondary text-11px font-mono ms-auto flex-shrink-0 ps-8px'>
-                ({repo.head.name})
-              </span>
-            )}
-          </div>
-        </Menu.Item>
+              <span className='truncate font-medium text-t-primary'>{g.repo.pe_name || g.repo.label}</span>
+              {g.repo.head?.name && (
+                <span className='text-t-secondary text-11px font-mono ms-auto flex-shrink-0 ps-8px'>
+                  ({g.repo.head.name})
+                </span>
+              )}
+            </div>
+          </Menu.Item>
+          {g.worktrees.map((wt) => (
+            <Menu.Item key={wt.repo_id}>
+              <div className='flex items-center gap-6px text-12px ps-14px'>
+                <RightBranchOne theme='outline' size='12' className='text-t-tertiary flex-shrink-0' />
+                <span className='truncate text-t-primary'>{wt.pe_name || wt.label}</span>
+                {wt.head?.name && (
+                  <span className='text-t-secondary text-11px font-mono ms-auto flex-shrink-0 ps-8px'>
+                    ({wt.head.name})
+                  </span>
+                )}
+              </div>
+            </Menu.Item>
+          ))}
+        </React.Fragment>
       ))}
+
+      {totalSubmodules > 0 && (
+        <>
+          <MenuDivider />
+          <div className='px-10px pt-6px pb-2px text-10px font-semibold uppercase tracking-wider text-t-tertiary select-none flex items-center justify-between'>
+            <span>{t('conversation.explorer.scm.submodule', 'Submodules')}</span>
+            <span className='font-mono text-10px opacity-75'>({totalSubmodules})</span>
+          </div>
+          {primaryGroups.map((g) => renderSubmoduleNodes(g.submodules, g.repo.pe_name || g.repo.label))}
+          {orphanSubmoduleGroups.map((g) => (
+            <React.Fragment key={g.repo.repo_id}>
+              <Menu.Item key={g.repo.repo_id}>
+                <div className='flex items-center gap-6px text-12px'>
+                  <Link theme='outline' size='12' className='text-t-secondary flex-shrink-0' />
+                  <span className='truncate text-t-primary'>{g.repo.pe_name || g.repo.label}</span>
+                  {g.repo.head?.name && (
+                    <span className='text-t-secondary text-11px font-mono ms-auto flex-shrink-0 ps-8px'>
+                      ({g.repo.head.name})
+                    </span>
+                  )}
+                </div>
+              </Menu.Item>
+              {g.submodules.length > 0 && renderSubmoduleNodes(g.submodules, g.repo.pe_name || g.repo.label, 1)}
+            </React.Fragment>
+          ))}
+        </>
+      )}
     </Menu>
   );
 
@@ -159,7 +259,11 @@ export const ScmGraphToolbar: React.FC<ScmGraphToolbarProps> = ({
               className='flex items-center gap-3px px-5px py-1px rd-4px border border-[var(--color-border-2)] bg-[var(--color-bg-1)] hover:bg-[var(--color-fill-2)] text-t-primary text-11px min-w-0 max-w-105px flex-shrink transition-colors cursor-pointer overflow-hidden'
               title={repoLabel}
             >
-              <FolderCode theme='outline' size='12' className='text-t-tertiary flex-shrink-0' />
+              {isSelectedSubmodule ? (
+                <Link theme='outline' size='12' className='text-t-secondary flex-shrink-0' />
+              ) : (
+                <FolderCode theme='outline' size='12' className='text-t-tertiary flex-shrink-0' />
+              )}
               <span className='truncate min-w-0 flex-1 text-left'>{repoLabel}</span>
               <Down theme='outline' size='10' className='text-t-tertiary flex-shrink-0' />
             </button>
