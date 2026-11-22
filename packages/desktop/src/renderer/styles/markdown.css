@@ -19,6 +19,16 @@
   max-width: 100%;
 }
 
+/* Match Mermaid's offscreen measurement context, not <pre>/prose typography.
+   Keep foreignObject containment intact; geometry must fit the labels. */
+.aionui-markdown .mermaid-block svg {
+  line-height: normal;
+  font-weight: 400;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
 .aionui-markdown :where(p) {
   margin-block-start: 16px;
   margin-block-end: 16px;

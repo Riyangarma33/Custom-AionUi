@@ -41,10 +41,20 @@ export const createInitStyle = (
     ${cssVarsDeclaration}
   }
 
-  * {
+  /* Mermaid owns SVG typography: forcing chat metrics onto its measured labels
+     clips both foreignObject nodes and native SVG cluster headings. */
+  *:where(:not(svg):not(svg *)) {
     line-height:${lineHeight};
     font-size:${fontSize};
     color: inherit;
+  }
+
+  .mermaid-block svg {
+    line-height: normal;
+    font-weight: 400;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: normal;
   }
 
   .markdown-shadow-body {

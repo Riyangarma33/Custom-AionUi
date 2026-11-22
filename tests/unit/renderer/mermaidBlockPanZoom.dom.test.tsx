@@ -5,7 +5,9 @@
  */
 
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import mermaid from 'mermaid';
+import { LayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import React from 'react';
 
 const renderMock = vi.hoisted(() => vi.fn());
@@ -60,6 +62,21 @@ vi.mock('@icon-park/react', () => ({
 }));
 
 import MermaidBlock from '@/renderer/components/Markdown/MermaidBlock';
+import { preserveMermaidLabelWrapping } from '@/renderer/components/Markdown/markdownUtils';
+
+describe('Mermaid label wrapping serialization', () => {
+  it('keeps wrapping on labels and descendants when moved to the zoom portal', () => {
+    const result = preserveMermaidLabelWrapping('<svg xmlns="http://www.w3.org/2000/svg"><foreignObject width="200" height="72"><div xmlns="http://www.w3.org/1999/xhtml" style="white-space: nowrap"><span><p>long label</p></span></div></foreignObject></svg>');
+    const svg = new DOMParser().parseFromString(result, 'image/svg+xml');
+    expect(svg.querySelector('div')?.style.getPropertyPriority('white-space')).toBe('important');
+    expect(svg.querySelector('p')?.style.whiteSpace).toBe('inherit');
+    expect(svg.querySelector('foreignObject')?.getAttribute('width')).toBe('200');
+  });
+
+  it('leaves malformed SVG unchanged instead of replacing it with a parser error', () => {
+    expect(preserveMermaidLabelWrapping('<svg><broken>')).toBe('<svg><broken>');
+  });
+});
 
 // jsdom lacks the pointer capture API used by the drag handlers.
 beforeAll(() => {
@@ -84,6 +101,59 @@ describe('MermaidBlock pan/zoom', () => {
   beforeEach(() => {
     renderMock.mockReset().mockResolvedValue({ svg: '<svg width="120" height="80"></svg>' });
     document.documentElement.setAttribute('data-theme', 'light');
+  });
+
+  it('uses explicit desktop metrics with padded flowchart geometry', async () => {
+    render(<MermaidBlock code={'graph TD; A-->B'} />);
+    await screen.findByTestId('mermaid-diagram');
+    expect(mermaid.initialize).toHaveBeenLastCalledWith(expect.objectContaining({
+      themeVariables: { fontSize: '16px', fontFamily: 'sans-serif' },
+      flowchart: { padding: 20, nodeSpacing: 50, rankSpacing: 50 },
+    }));
+  });
+
+  it('embeds wrapping protection in the measured SVG instead of exposing overflowing labels', async () => {
+    render(<MermaidBlock code={'graph TD; A["Long text with explicit<br/>line breaks"]'} />);
+    await screen.findByTestId('mermaid-diagram');
+    const config = vi.mocked(mermaid.initialize).mock.calls.at(-1)?.[0];
+    expect(config?.themeCSS).toContain('white-space: break-spaces !important');
+    expect(config?.themeCSS).toContain('white-space: inherit !important');
+    expect(config?.themeCSS).not.toContain('overflow: visible');
+  });
+
+  it('remeasures when switching to mobile metrics', async () => {
+    const desktop = { isMobile: false, siderCollapsed: false, setSiderCollapsed: vi.fn() };
+    const { rerender } = render(<LayoutContext.Provider value={desktop}><MermaidBlock code={'graph TD; A-->B'} /></LayoutContext.Provider>);
+    await screen.findByTestId('mermaid-diagram');
+    rerender(<LayoutContext.Provider value={{ ...desktop, isMobile: true }}><MermaidBlock code={'graph TD; A-->B'} /></LayoutContext.Provider>);
+    await waitFor(() => expect(mermaid.initialize).toHaveBeenLastCalledWith(expect.objectContaining({
+      themeVariables: { fontSize: '14px', fontFamily: 'sans-serif' },
+    })));
+  });
+
+  it('waits for fonts and skips measurement after unmount', async () => {
+    let resolveFonts!: () => void;
+    const original = Object.getOwnPropertyDescriptor(document, 'fonts');
+    Object.defineProperty(document, 'fonts', { configurable: true, value: { ready: new Promise<void>((resolve) => { resolveFonts = resolve; }) } });
+    try {
+      const { unmount } = render(<MermaidBlock code={'graph TD; A-->B'} />);
+      expect(renderMock).not.toHaveBeenCalled();
+      unmount();
+      await act(async () => { resolveFonts(); });
+      expect(renderMock).not.toHaveBeenCalled();
+    } finally {
+      if (original) Object.defineProperty(document, 'fonts', original);
+      else Reflect.deleteProperty(document, 'fonts');
+    }
+  });
+
+  it('a failed diagram does not prevent the next diagram rendering', async () => {
+    renderMock.mockRejectedValueOnce(new Error('invalid diagram'));
+    const { unmount } = render(<MermaidBlock code={'invalid'} />);
+    await waitFor(() => expect(renderMock).toHaveBeenCalledTimes(1));
+    unmount();
+    render(<MermaidBlock code={'graph TD; A-->B'} />);
+    expect(await screen.findByTestId('mermaid-diagram')).toBeInTheDocument();
   });
 
   it('renders a static diagram without zoom controls by default', async () => {

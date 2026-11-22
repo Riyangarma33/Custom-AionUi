@@ -9,13 +9,14 @@ import SyntaxHighlighter from 'react-syntax-highlighter';
 import { vs, vs2015 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 
 import { copyText } from '@/renderer/utils/ui/clipboard';
+import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { Message } from '@arco-design/web-react';
 import { Copy, PreviewOpen, Refresh, ZoomIn, ZoomOut } from '@icon-park/react';
 import { usePreviewContext } from '@/renderer/pages/conversation/Preview';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import DiagramZoomOverlay from './DiagramZoomOverlay';
-import { withResponsiveSvg } from './markdownUtils';
+import { preserveMermaidLabelWrapping, withResponsiveSvg } from './markdownUtils';
 
 type MermaidBlockProps = {
   code: string;
@@ -35,22 +36,67 @@ const MERMAID_ZOOM_STEP = 0.25;
 // overlay) instead of a pan, when drag-to-pan is enabled.
 const PAN_CLICK_THRESHOLD = 4;
 
-let initializedTheme: 'light' | 'dark' | null = null;
-const ensureMermaidInitialized = (theme: 'light' | 'dark') => {
-  if (initializedTheme === theme) return;
-  mermaid.initialize({
-    startOnLoad: false,
-    securityLevel: 'strict',
-    suppressErrorRendering: true,
-    theme: theme === 'dark' ? 'dark' : 'default',
-    fontFamily: 'inherit',
+// initialize() mutates Mermaid's singleton. Keep initialization and the complete
+// async render together, including when differently sized diagrams mount at once.
+let renderQueue: Promise<unknown> = Promise.resolve();
+const renderMermaid = (id: string, source: string, theme: 'light' | 'dark', fontSize: string, fontFamily: string) => {
+  const pending = renderQueue.then(async () => {
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'strict',
+      suppressErrorRendering: true,
+      theme: theme === 'dark' ? 'dark' : 'default',
+      fontFamily,
+      themeVariables: { fontSize, fontFamily },
+      // HTML labels may inherit <pre> whitespace or application/user CSS in the
+      // preview and body-mounted zoom portal. Mermaid measures wrapped labels;
+      // preserving only font metrics still lets nowrap clip the final SVG.
+      // themeCSS participates in measurement AND is embedded in exported SVGs.
+      themeCSS: `
+        foreignObject > div {
+          white-space: break-spaces !important;
+          overflow-wrap: anywhere !important;
+          word-break: normal !important;
+          font-size: ${fontSize} !important;
+          font-family: ${fontFamily} !important;
+          line-height: 1.5 !important;
+        }
+        foreignObject > div :is(span, p) {
+          white-space: inherit !important;
+          overflow-wrap: inherit !important;
+          word-break: inherit !important;
+          font-size: inherit !important;
+          font-family: inherit !important;
+          line-height: inherit !important;
+          margin: 0 !important;
+        }
+      `,
+      flowchart: { padding: 20, nodeSpacing: 50, rankSpacing: 50 },
+    });
+    return mermaid.render(id, source);
   });
-  initializedTheme = theme;
+  // A malformed diagram must not poison later renders.
+  renderQueue = pending.catch(() => undefined);
+  return pending;
 };
 
 function MermaidBlock({ code, style, showOpenInPanelButton = true, enablePanZoom = false }: MermaidBlockProps) {
   const { t } = useTranslation();
   const { openPreview } = usePreviewContext();
+  const layout = useLayoutContext();
+  const [mobileViewport, setMobileViewport] = useState(() => window.matchMedia?.('(max-width: 767px)').matches ?? false);
+  const isMobile = layout?.isMobile ?? mobileViewport;
+  const fontSize = isMobile ? '14px' : '16px';
+  // Resolve a real family, not "inherit": measurement happens under document.body,
+  // while display may live in a ShadowRoot, a monospace <pre>, or a zoom portal.
+  const fontFamily = getComputedStyle(document.body).fontFamily || 'sans-serif';
+  useEffect(() => {
+    const query = window.matchMedia?.('(max-width: 767px)');
+    if (!query) return;
+    const update = () => setMobileViewport(query.matches);
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
   const blockIdRef = useRef(`mermaid-${Math.random().toString(36).slice(2, 10)}`);
   const preferredViewModeRef = useRef<'preview' | 'source' | null>(null);
   const [svg, setSvg] = useState<string | null>(null);
@@ -173,12 +219,20 @@ function MermaidBlock({ code, style, showOpenInPanelButton = true, enablePanZoom
 
     const renderDiagram = async () => {
       try {
-        ensureMermaidInitialized(currentTheme);
-
-        const { svg: renderedSvg } = await mermaid.render(`${blockIdRef.current}-${Date.now()}`, source);
+        // Wait for web fonts before measuring labels. Older browsers may not
+        // expose FontFaceSet; awaiting undefined is deliberately harmless.
+        await document.fonts?.ready;
+        if (cancelled) return;
+        const { svg: renderedSvg } = await renderMermaid(
+          `${blockIdRef.current}-${Date.now()}`,
+          source,
+          currentTheme,
+          fontSize,
+          fontFamily
+        );
 
         if (!cancelled) {
-          setSvg(withResponsiveSvg(renderedSvg));
+          setSvg(withResponsiveSvg(preserveMermaidLabelWrapping(renderedSvg)));
           setIsRendering(false);
           setViewMode(preferredViewModeRef.current === 'source' ? 'source' : 'preview');
         }
@@ -196,7 +250,7 @@ function MermaidBlock({ code, style, showOpenInPanelButton = true, enablePanZoom
     return () => {
       cancelled = true;
     };
-  }, [debouncedCode, currentTheme]);
+  }, [debouncedCode, currentTheme, fontSize, fontFamily]);
 
   const codeTheme = currentTheme === 'dark' ? vs2015 : vs;
   const shouldShowLoading = isRendering && preferredViewModeRef.current !== 'source';
@@ -210,7 +264,20 @@ function MermaidBlock({ code, style, showOpenInPanelButton = true, enablePanZoom
       : t('preview.mermaidTitle');
 
   return (
-    <div style={{ width: '100%', minWidth: 0, maxWidth: '100%', ...style }}>
+    <div
+      className='mermaid-block'
+      style={{
+        width: '100%',
+        minWidth: 0,
+        maxWidth: '100%',
+        ...style,
+        fontFamily,
+        fontSize,
+        lineHeight: 'normal',
+        whiteSpace: 'normal',
+        fontWeight: 400,
+      }}
+    >
       <div
         style={{
           border: '1px solid var(--bg-3)',

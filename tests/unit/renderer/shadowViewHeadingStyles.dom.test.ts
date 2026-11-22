@@ -32,6 +32,13 @@ const parsedRules = (): CSSRule[] => {
 const selectorOf = (rule: CSSRule): string => (rule as CSSStyleRule).selectorText ?? '';
 
 describe('createInitStyle heading inline-markup sizing', () => {
+  it('does not flatten SVG nodes or native cluster headings to chat typography', () => {
+    const rule = parsedRules().find((r) => selectorOf(r) === '*:where(:not(svg):not(svg *))') as CSSStyleRule;
+    const container = document.createElement('div');
+    container.innerHTML = '<p>prose</p><svg><text>cluster</text><foreignObject><div>node</div></foreignObject></svg>';
+    expect([...container.querySelectorAll(rule.selectorText)].map((el) => el.tagName)).toEqual(['P']);
+    expect(parsedRules().some((r) => selectorOf(r) === '*')).toBe(false);
+  });
   it('restores inheritance for elements nested in headings', () => {
     const rule = parsedRules().find((r) => selectorOf(r).replace(/\s/g, '') === ':is(h1,h2,h3,h4,h5,h6)*') as
       | CSSStyleRule
@@ -47,7 +54,7 @@ describe('createInitStyle heading inline-markup sizing', () => {
     const rules = parsedRules();
     const indexOf = (predicate: (sel: string) => boolean) => rules.findIndex((r) => predicate(selectorOf(r)));
 
-    const flattener = indexOf((sel) => sel === '*');
+    const flattener = indexOf((sel) => sel === '*:where(:not(svg):not(svg *))');
     const strongReset = indexOf((sel) => sel === 'strong');
     const inheritance = indexOf((sel) => sel.replace(/\s/g, '') === ':is(h1,h2,h3,h4,h5,h6)*');
 

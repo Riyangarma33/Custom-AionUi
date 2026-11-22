@@ -8,6 +8,23 @@ import type React from 'react';
 
 import { diffColors } from '@/renderer/styles/colors';
 
+/** Preserve measured Mermaid HTML label wrapping across preview/zoom CSS contexts. */
+export const preserveMermaidLabelWrapping = (svg: string): string => {
+  const document = new DOMParser().parseFromString(svg, 'image/svg+xml');
+  if (document.querySelector('parsererror')) return svg;
+  document.querySelectorAll<HTMLElement>('foreignObject > div').forEach((label) => {
+    label.style.setProperty('white-space', 'break-spaces', 'important');
+    label.style.setProperty('overflow-wrap', 'anywhere', 'important');
+    label.style.setProperty('word-break', 'normal', 'important');
+    label.querySelectorAll<HTMLElement>('span, p').forEach((child) => {
+      child.style.setProperty('white-space', 'inherit', 'important');
+      child.style.setProperty('overflow-wrap', 'inherit', 'important');
+      child.style.setProperty('word-break', 'inherit', 'important');
+    });
+  });
+  return new XMLSerializer().serializeToString(document.documentElement);
+};
+
 /**
  * Format raw code string, attempting JSON pretty-print.
  * Falls back to stripped trailing newline if parsing fails.
