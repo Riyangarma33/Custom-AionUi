@@ -6,26 +6,53 @@
 
 import type { TChatConversation } from '@/common/config/storage';
 import AionModal from '@/renderer/components/base/AionModal';
+import MobileActionSheet, { type MobileActionSheetEntry } from '@/renderer/components/chat/MobileActionSheet';
+import { useConversationHistoryContext } from '@/renderer/hooks/context/ConversationHistoryContext';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useCronJobsMap } from '@/renderer/pages/cron';
 import { restrictToVerticalAxis } from '@/renderer/utils/ui/dndModifiers';
-import { DndContext, closestCenter } from '@dnd-kit/core';
+import { DndContext, useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Button, Dropdown, Empty, Input, Menu, Modal, Tooltip } from '@arco-design/web-react';
-import { FolderClose, MoreOne, Plus, Right } from '@icon-park/react';
+import { Button, Dropdown, Empty, Input, Menu, Message, Modal, Tooltip } from '@arco-design/web-react';
+import { FolderClose, FolderOpen, FolderPlus, MoreOne, Plus, Right } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import WorkspaceCollapse from '../components/WorkspaceCollapse';
 import ConversationRow from './ConversationRow';
+import DraggableConversationRow from './DraggableConversationRow';
+import FolderRow from './FolderRow';
 import SortableConversationRow from './SortableConversationRow';
 import { useBatchSelection } from './hooks/useBatchSelection';
 import { useConversationActions } from './hooks/useConversationActions';
 import { useConversations } from './hooks/useConversations';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
-import type { ConversationRowProps, WorkspaceGroupedHistoryProps } from './types';
+import type { ConversationRowProps, ResolvedConversationFolder, WorkspaceGroupedHistoryProps } from './types';
+import { conversationFolderSectionKey, getConversationGroupId } from './utils/conversationFolders';
+
+type FolderModalState = {
+  mode: 'create' | 'rename';
+  workspace: string;
+  groupId?: string;
+  name: string;
+};
+
+/**
+ * A per-project drop target rendered through a render-prop so the droppable ref
+ * can be attached to the project's sticky header only (not its whole subtree).
+ */
+const ProjectDrop: React.FC<{
+  workspace: string;
+  children: (state: { setHeaderRef: (element: HTMLElement | null) => void; isOver: boolean }) => React.ReactNode;
+}> = ({ workspace, children }) => {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `project:${workspace}`,
+    data: { type: 'project-root', workspace },
+  });
+  return <>{children({ setHeaderRef: setNodeRef, isOver })}</>;
+};
 
 const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
   onSessionClick,
@@ -41,6 +68,12 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const { getJobStatus, markAsRead, setActiveConversation } = useCronJobsMap();
+  const { conversationFolders } = useConversationHistoryContext();
+  const { folders: folderCatalog, createFolder, renameFolder, deleteFolder, moveConversations } = conversationFolders;
+
+  const [folderModal, setFolderModal] = useState<FolderModalState | null>(null);
+  const [folderSaving, setFolderSaving] = useState(false);
+  const [moveTarget, setMoveTarget] = useState<TChatConversation | null>(null);
 
   const {
     conversations,
@@ -139,11 +172,24 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     isManualUnread,
   });
 
-  const { sensors, handleDragEnd, isDragEnabled } = useDragAndDrop({
+  const handleAssignToFolder = useCallback(
+    (conversationId: string, workspace: string, groupId: string | null) => {
+      void moveConversations([conversationId], groupId);
+    },
+    [moveConversations]
+  );
+
+  const { sensors, handleDragEnd, isDragEnabled, collisionDetection } = useDragAndDrop({
     pinnedConversations,
     batchMode,
     collapsed,
+    onAssignToFolder: handleAssignToFolder,
   });
+
+  // Folder dragging only makes sense once a folder exists. Gating on the
+  // catalog keeps the panel pixel-identical (no drag handle, no wrapper) when
+  // the catalog key is absent — the acceptance criterion for the bucketing commit.
+  const isFolderDragEnabled = isDragEnabled && folderCatalog.length > 0;
 
   // Fork-lineage badge support: resolve a parent conversation's display name
   // from the already-loaded sidebar list (no extra fetch; unresolved = the
@@ -160,8 +206,16 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     [conversationNameById]
   );
 
+  const handleOpenMoveToFolder = useCallback(
+    (conversation: TChatConversation) => {
+      handleMenuVisibleChange(conversation.id, false);
+      setMoveTarget(conversation);
+    },
+    [handleMenuVisibleChange]
+  );
+
   const getConversationRowProps = useCallback(
-    (conversation: TChatConversation): ConversationRowProps => ({
+    (conversation: TChatConversation, indentLevel: 0 | 1 | 2 = 0): ConversationRowProps => ({
       conversation,
       isGenerating: isConversationGenerating(conversation.id),
       isWaitingConfirmation: isConversationWaitingConfirmation(conversation.id),
@@ -182,8 +236,11 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
       onArchive: handleArchive,
       onTogglePin: handleTogglePin,
       onToggleManualUnread: handleToggleManualUnread,
+      onMoveToFolder: indentLevel > 0 ? handleOpenMoveToFolder : undefined,
       getJobStatus,
       resolveConversationName,
+      dimIcon: indentLevel > 0,
+      indentLevel,
     }),
     [
       collapsed,
@@ -205,14 +262,18 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
       handleArchive,
       handleTogglePin,
       handleToggleManualUnread,
+      handleOpenMoveToFolder,
       getJobStatus,
       resolveConversationName,
     ]
   );
 
-  const renderConversation = (conversation: TChatConversation, dimIcon = false) => {
-    const rowProps = getConversationRowProps(conversation);
-    return <ConversationRow key={conversation.id} {...rowProps} dimIcon={dimIcon} />;
+  const renderConversation = (conversation: TChatConversation, indentLevel: 0 | 1 | 2 = 0) => {
+    const rowProps = getConversationRowProps(conversation, indentLevel);
+    if (indentLevel > 0 && isFolderDragEnabled) {
+      return <DraggableConversationRow key={conversation.id} {...rowProps} />;
+    }
+    return <ConversationRow key={conversation.id} {...rowProps} />;
   };
 
   // Collect all sortable IDs for the pinned section
@@ -222,7 +283,13 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
   // Projects section: collect all workspace groups across timeline sections, ordered by recency.
   const projectGroups = useMemo(() => {
     const seen = new Set<string>();
-    const groups: Array<{ workspace: string; displayName: string; conversations: TChatConversation[] }> = [];
+    const groups: Array<{
+      workspace: string;
+      displayName: string;
+      conversations: TChatConversation[];
+      rootConversations: TChatConversation[];
+      folders: ResolvedConversationFolder[];
+    }> = [];
     for (const section of timelineSections) {
       for (const item of section.items) {
         if (item.type === 'workspace' && item.workspaceGroup && !seen.has(item.workspaceGroup.workspace)) {
@@ -231,6 +298,8 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
             workspace: item.workspaceGroup.workspace,
             displayName: item.workspaceGroup.display_name,
             conversations: item.workspaceGroup.conversations,
+            rootConversations: item.workspaceGroup.rootConversations,
+            folders: item.workspaceGroup.folders,
           });
         }
       }
@@ -249,6 +318,123 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
         .filter((section) => section.items.length > 0),
     [timelineSections]
   );
+
+  // ---- Folder actions -------------------------------------------------------
+
+  const handleOpenCreateFolder = useCallback((workspace: string) => {
+    setFolderModal({ mode: 'create', workspace, name: '' });
+  }, []);
+
+  const handleOpenRenameFolder = useCallback((folder: ResolvedConversationFolder) => {
+    setFolderModal({ mode: 'rename', workspace: folder.workspace, groupId: folder.group_id, name: folder.name });
+  }, []);
+
+  const handleOpenDeleteFolder = useCallback(
+    (folder: ResolvedConversationFolder) => {
+      Modal.confirm({
+        title: t('conversation.history.deleteFolderTitle'),
+        content: t('conversation.history.deleteFolderConfirm', {
+          name: folder.name,
+          count: folder.conversations.length,
+        }),
+        okText: t('common.delete'),
+        cancelText: t('common.cancel'),
+        okButtonProps: { status: 'danger' },
+        onOk: async () => {
+          const ok = await deleteFolder(folder.group_id);
+          if (ok) Message.success(t('conversation.history.folderDeleted'));
+          else Message.error(t('conversation.history.folderDeleteFailed'));
+        },
+      });
+    },
+    [deleteFolder, t]
+  );
+
+  const handleFolderModalConfirm = useCallback(async () => {
+    if (!folderModal) return;
+    const name = folderModal.name.trim();
+    if (!name) return;
+    setFolderSaving(true);
+    try {
+      if (folderModal.mode === 'create') {
+        const created = await createFolder(folderModal.workspace, name);
+        if (created) {
+          Message.success(t('conversation.history.folderCreated'));
+          setFolderModal(null);
+        } else {
+          Message.error(t('conversation.history.folderCreateFailed'));
+        }
+      } else if (folderModal.groupId) {
+        const ok = await renameFolder(folderModal.groupId, name);
+        if (ok) {
+          Message.success(t('conversation.history.folderRenamed'));
+          setFolderModal(null);
+        } else {
+          Message.error(t('conversation.history.folderRenameFailed'));
+        }
+      }
+    } finally {
+      setFolderSaving(false);
+    }
+  }, [folderModal, createFolder, renameFolder, t]);
+
+  const renderFolder = (folder: ResolvedConversationFolder, depth = 0): React.ReactNode => {
+    const sectionKey = conversationFolderSectionKey(folder.group_id);
+    const expanded = !collapsedSections.has(sectionKey);
+    return (
+      <FolderRow
+        key={folder.group_id}
+        folder={folder}
+        depth={depth}
+        expanded={expanded}
+        siderCollapsed={collapsed}
+        isMobile={isMobile}
+        onToggle={() => toggleSection(sectionKey)}
+        onRename={handleOpenRenameFolder}
+        onDelete={handleOpenDeleteFolder}
+      >
+        {folder.conversations.map((conversation) => renderConversation(conversation, 2))}
+        {folder.children.map((child) => renderFolder(child, depth + 1))}
+      </FolderRow>
+    );
+  };
+
+  // Mobile "Move to folder" action sheet: folder list for the conversation's
+  // workspace plus an entry to move it back to the project root.
+  const moveSheetEntries = useMemo<MobileActionSheetEntry[]>(() => {
+    const target = moveTarget;
+    if (!target) return [];
+    const workspace = target.extra?.workspace;
+    const currentGroupId = getConversationGroupId(target);
+    const candidates = folderCatalog.filter((folder) => folder.workspace === workspace);
+    const entries: MobileActionSheetEntry[] = [
+      {
+        key: '__project_root__',
+        icon: <FolderClose theme='outline' size={16} />,
+        label: t('conversation.history.projectRoot'),
+        variant: 'muted',
+        disabled: currentGroupId === null,
+        onClick: () => {
+          void moveConversations([target.id], null);
+          setMoveTarget(null);
+        },
+      },
+    ];
+    for (const folder of candidates) {
+      entries.push({
+        key: folder.group_id,
+        icon: <FolderOpen theme='outline' size={16} />,
+        label: folder.name,
+        variant: 'muted',
+        disabled: currentGroupId === folder.group_id,
+        onClick: () => {
+          void moveConversations([target.id], folder.group_id);
+          setMoveTarget(null);
+        },
+      });
+    }
+    return entries;
+  }, [moveTarget, folderCatalog, moveConversations, t]);
 
   if (timelineSections.length === 0 && pinnedConversations.length === 0) {
     return (
@@ -285,6 +471,69 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
           allowClear
         />
       </Modal>
+
+      {/* Folder create / rename modal. Rendered only while open so closing cannot
+          re-render it with the other mode's labels during the exit transition. */}
+      {folderModal !== null && (
+      <AionModal
+        visible
+        style={{ width: '400px' }}
+        header={{
+          title:
+            folderModal?.mode === 'create'
+              ? t('conversation.history.newFolder')
+              : t('conversation.history.renameFolderTitle'),
+          showClose: true,
+          style: { borderBottom: 'none' },
+        }}
+        onCancel={() => {
+          if (!folderSaving) setFolderModal(null);
+        }}
+        footer={
+          <div className='flex justify-end gap-12px pt-16px'>
+            <button
+              type='button'
+              className='px-24px py-8px rounded-20px text-14px font-medium transition-all'
+              style={{
+                border: '1px solid var(--color-border-2)',
+                backgroundColor: 'var(--color-fill-2)',
+                color: 'var(--color-text-1)',
+                cursor: folderSaving ? 'not-allowed' : 'pointer',
+                opacity: folderSaving ? 0.55 : 1,
+              }}
+              onClick={() => setFolderModal(null)}
+              disabled={folderSaving}
+            >
+              {t('common.cancel')}
+            </button>
+            <button
+              type='button'
+              className='px-24px py-8px rounded-20px text-14px font-medium transition-all'
+              style={{
+                border: '1px solid rgb(var(--primary-6))',
+                backgroundColor: 'transparent',
+                color: 'rgb(var(--primary-6))',
+                cursor: folderSaving || !folderModal?.name.trim() ? 'not-allowed' : 'pointer',
+                opacity: folderSaving || !folderModal?.name.trim() ? 0.55 : 1,
+              }}
+              onClick={() => void handleFolderModalConfirm()}
+              disabled={folderSaving || !folderModal?.name.trim()}
+            >
+              {folderModal?.mode === 'create' ? t('common.create') : t('common.save')}
+            </button>
+          </div>
+        }
+      >
+        <Input
+          autoFocus
+          value={folderModal?.name ?? ''}
+          onChange={(value) => setFolderModal((prev) => (prev ? { ...prev, name: value } : prev))}
+          onPressEnter={() => void handleFolderModalConfirm()}
+          placeholder={t('conversation.history.folderNamePlaceholder')}
+          allowClear
+        />
+      </AionModal>
+      )}
 
       {batchMode && !collapsed && (
         <div className='px-12px pb-8px pt-2px sticky top-0 z-20 bg-[var(--bg-2)]'>
@@ -381,14 +630,23 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
         </div>
       </AionModal>
 
+      {isMobile && (
+        <MobileActionSheet
+          open={moveTarget !== null}
+          onClose={() => setMoveTarget(null)}
+          title={t('conversation.history.moveToFolderTitle')}
+          entries={moveSheetEntries}
+        />
+      )}
+
       <div>
-        {/* L1: Pinned section */}
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCenter}
+          collisionDetection={collisionDetection}
           modifiers={[restrictToVerticalAxis]}
           onDragEnd={handleDragEnd}
         >
+          {/* L1: Pinned section */}
           {pinnedConversations.length > 0 && (
             <div className='min-w-0'>
               {!collapsed && <SectionLabel sectionKey='pinned' label={t('conversation.history.pinnedSection')} />}
@@ -408,124 +666,148 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
               )}
             </div>
           )}
-        </DndContext>
 
-        {/* Slot 由父级（Sider）填入：例如 Team / CronJob sections，位于「置顶」之后、「项目」之前 */}
-        {afterPinnedContent}
+          {/* Slot 由父级（Sider）填入：例如 Team / CronJob sections，位于「置顶」之后、「项目」之前 */}
+          {afterPinnedContent}
 
-        {/* L1: Projects section — workspace folders, peer to conversations */}
-        {projectGroups.length > 0 && (
-          <div className='min-w-0'>
-            {!collapsed && <SectionLabel sectionKey='projects' label={t('conversation.history.projectsSection')} />}
-            {!collapsedSections.has('projects') &&
-              projectGroups.map((group) => {
-                const projectMenu = (
-                  <Menu
-                    onClickMenuItem={(key) => {
-                      if (key === 'archive') {
-                        handleArchiveProject(group.displayName, group.conversations);
-                      }
-                    }}
-                  >
-                    <Menu.Item key='archive'>
-                      <span className='flex items-center gap-8px'>
-                        <FolderClose theme='outline' size='14' />
-                        {t('conversation.history.archiveProject')}
-                      </span>
-                    </Menu.Item>
-                  </Menu>
-                );
-                return (
-                  <div key={group.workspace} className='min-w-0'>
-                    <WorkspaceCollapse
-                      expanded={expandedWorkspaces.includes(group.workspace)}
-                      onToggle={() => handleToggleWorkspace(group.workspace)}
-                      siderCollapsed={collapsed}
-                      stickyHeader
-                      stickyTop={28}
-                      header={
-                        <span className='text-14px font-[500] truncate flex-1 text-t-primary min-w-0'>
-                          {group.displayName}
-                        </span>
-                      }
-                      trailing={
-                        <span className='flex items-center gap-6px'>
-                          <Tooltip content={t('conversation.history.newConversationInProject')} position='top'>
-                            <span
-                              role='button'
-                              tabIndex={0}
-                              aria-label={t('conversation.history.newConversationInProject')}
-                              className={classNames(
-                                'flex-center cursor-pointer transition-colors text-t-secondary hover:text-t-primary size-20px rd-4px sider-action-btn',
-                                isMobile ? 'flex' : 'hidden group-hover:flex'
-                              )}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void navigate('/guid', { state: { workspace: group.workspace } });
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  void navigate('/guid', { state: { workspace: group.workspace } });
-                                }
-                              }}
-                            >
-                              <Plus theme='outline' size='14' fill='currentColor' className='block leading-none' />
-                            </span>
-                          </Tooltip>
-                          <Dropdown
-                            droplist={projectMenu}
-                            trigger='click'
-                            position='br'
-                            getPopupContainer={() => document.body}
-                            unmountOnExit={false}
-                          >
-                            <span
-                              aria-label='Project actions'
-                              className={classNames(
-                                'flex-center cursor-pointer transition-colors text-t-secondary hover:text-t-primary size-20px rd-4px sider-action-btn',
-                                isMobile ? 'flex' : 'hidden group-hover:flex'
-                              )}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <MoreOne theme='outline' size='14' fill='currentColor' className='block leading-none' />
-                            </span>
-                          </Dropdown>
-                        </span>
-                      }
+          {/* L1: Projects section — workspace folders, peer to conversations */}
+          {projectGroups.length > 0 && (
+            <div className='min-w-0'>
+              {!collapsed && <SectionLabel sectionKey='projects' label={t('conversation.history.projectsSection')} />}
+              {!collapsedSections.has('projects') &&
+                projectGroups.map((group) => {
+                  const projectMenu = (
+                    <Menu
+                      onClickMenuItem={(key) => {
+                        if (key === 'newFolder') {
+                          handleOpenCreateFolder(group.workspace);
+                        } else if (key === 'archive') {
+                          handleArchiveProject(group.displayName, group.conversations);
+                        }
+                      }}
                     >
-                      <div className={classNames('flex flex-col min-w-0', { 'mt-1px': !collapsed })}>
-                        {group.conversations.map((conversation) => renderConversation(conversation, true))}
-                      </div>
-                    </WorkspaceCollapse>
-                  </div>
-                );
-              })}
-          </div>
-        )}
+                      <Menu.Item key='newFolder'>
+                        <span className='flex items-center gap-8px'>
+                          <FolderPlus theme='outline' size='14' />
+                          {t('conversation.history.newFolder')}
+                        </span>
+                      </Menu.Item>
+                      <Menu.Item key='archive'>
+                        <span className='flex items-center gap-8px'>
+                          <FolderClose theme='outline' size='14' />
+                          {t('conversation.history.archiveProject')}
+                        </span>
+                      </Menu.Item>
+                    </Menu>
+                  );
+                  return (
+                    <ProjectDrop key={group.workspace} workspace={group.workspace}>
+                      {({ setHeaderRef, isOver }) => (
+                        <div className='min-w-0'>
+                          <WorkspaceCollapse
+                            expanded={expandedWorkspaces.includes(group.workspace)}
+                            onToggle={() => handleToggleWorkspace(group.workspace)}
+                            siderCollapsed={collapsed}
+                            stickyHeader
+                            stickyTop={28}
+                            headerRef={setHeaderRef}
+                            dropActive={isOver}
+                            header={
+                              <span className='text-14px font-[500] truncate flex-1 text-t-primary min-w-0'>
+                                {group.displayName}
+                              </span>
+                            }
+                            trailing={
+                              <span className='flex items-center gap-6px'>
+                                <Tooltip content={t('conversation.history.newConversationInProject')} position='top'>
+                                  <span
+                                    role='button'
+                                    tabIndex={0}
+                                    aria-label={t('conversation.history.newConversationInProject')}
+                                    className={classNames(
+                                      'flex-center cursor-pointer transition-colors text-t-secondary hover:text-t-primary size-20px rd-4px sider-action-btn',
+                                      isMobile ? 'flex' : 'hidden group-hover:flex'
+                                    )}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      void navigate('/guid', { state: { workspace: group.workspace } });
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        void navigate('/guid', { state: { workspace: group.workspace } });
+                                      }
+                                    }}
+                                  >
+                                    <Plus theme='outline' size='14' fill='currentColor' className='block leading-none' />
+                                  </span>
+                                </Tooltip>
+                                <Dropdown
+                                  droplist={projectMenu}
+                                  trigger='click'
+                                  position='br'
+                                  getPopupContainer={() => document.body}
+                                  unmountOnExit={false}
+                                >
+                                  <span
+                                    role='button'
+                                    tabIndex={0}
+                                    aria-label='Project actions'
+                                    className={classNames(
+                                      'flex-center cursor-pointer transition-colors text-t-secondary hover:text-t-primary size-20px rd-4px sider-action-btn',
+                                      isMobile ? 'flex' : 'hidden group-hover:flex'
+                                    )}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        e.currentTarget.click();
+                                      }
+                                    }}
+                                  >
+                                    <MoreOne theme='outline' size='14' fill='currentColor' className='block leading-none' />
+                                  </span>
+                                </Dropdown>
+                              </span>
+                            }
+                          >
+                            <div className={classNames('flex flex-col min-w-0', { 'mt-1px': !collapsed })}>
+                              {group.folders.map((folder) => renderFolder(folder))}
+                              {group.rootConversations.map((conversation) => renderConversation(conversation, 1))}
+                            </div>
+                          </WorkspaceCollapse>
+                        </div>
+                      )}
+                    </ProjectDrop>
+                  );
+                })}
+            </div>
+          )}
 
-        {/* L1: Conversations section — peer to projects, internally split by timeline */}
-        {conversationOnlySections.length > 0 && (
-          <div className='min-w-0'>
-            {!collapsed && (
-              <SectionLabel sectionKey='conversations' label={t('conversation.history.conversationsSection')} />
-            )}
-            {!collapsedSections.has('conversations') &&
-              conversationOnlySections.map((section) => (
-                <div key={section.timeline} className='min-w-0'>
-                  {!collapsed && conversationOnlySections.length > 1 && (
-                    <div className='flex items-center px-16px h-24px select-none'>
-                      <span className='text-12px text-t-secondary font-[500] leading-none'>{section.timeline}</span>
-                    </div>
-                  )}
-                  {section.items.map((item) =>
-                    item.type === 'conversation' && item.conversation ? renderConversation(item.conversation) : null
-                  )}
-                </div>
-              ))}
-          </div>
-        )}
+          {/* L1: Conversations section — peer to projects, internally split by timeline */}
+          {conversationOnlySections.length > 0 && (
+            <div className='min-w-0'>
+              {!collapsed && (
+                <SectionLabel sectionKey='conversations' label={t('conversation.history.conversationsSection')} />
+              )}
+              {!collapsedSections.has('conversations') &&
+                conversationOnlySections.map((section) => (
+                  <div key={section.timeline} className='min-w-0'>
+                    {!collapsed && conversationOnlySections.length > 1 && (
+                      <div className='flex items-center px-16px h-24px select-none'>
+                        <span className='text-12px text-t-secondary font-[500] leading-none'>{section.timeline}</span>
+                      </div>
+                    )}
+                    {section.items.map((item) =>
+                      item.type === 'conversation' && item.conversation ? renderConversation(item.conversation) : null
+                    )}
+                  </div>
+                ))}
+            </div>
+          )}
+        </DndContext>
       </div>
     </>
   );

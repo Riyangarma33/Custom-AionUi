@@ -8,7 +8,8 @@ import type { TChatConversation } from '@/common/config/storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useConversationHistoryContext } from '@/renderer/hooks/context/ConversationHistoryContext';
-import type { TimelineSection } from '../types';
+import type { ResolvedConversationFolder, TimelineSection } from '../types';
+import { conversationFolderSectionKey } from '../utils/conversationFolders';
 import {
   dispatchWorkspaceExpansionChange,
   readExpandedWorkspaces,
@@ -31,7 +32,17 @@ const readCollapsedSections = (): Set<string> => {
 
 // Where an active conversation lives, so we can expand the right containers
 // before scrolling it into view.
-type ConversationLocation = { section: 'pinned' | 'projects' | 'conversations'; workspace?: string };
+type ConversationLocation = {
+  section: 'pinned' | 'projects' | 'conversations';
+  workspace?: string;
+  /** Folder that contains the conversation, when it is inside one. */
+  folderId?: string;
+};
+
+const folderContainsConversation = (folder: ResolvedConversationFolder, id: string): boolean => {
+  if (folder.conversations.some((conversation) => conversation.id === id)) return true;
+  return folder.children.some((child) => folderContainsConversation(child, id));
+};
 
 const locateConversation = (
   id: string,
@@ -43,7 +54,8 @@ const locateConversation = (
     for (const item of section.items) {
       if (item.type === 'workspace' && item.workspaceGroup) {
         if (item.workspaceGroup.conversations.some((c) => c.id === id)) {
-          return { section: 'projects', workspace: item.workspaceGroup.workspace };
+          const folder = item.workspaceGroup.folders.find((candidate) => folderContainsConversation(candidate, id));
+          return { section: 'projects', workspace: item.workspaceGroup.workspace, folderId: folder?.group_id };
         }
       } else if (item.type === 'conversation' && item.conversation?.id === id) {
         return { section: 'conversations' };
@@ -123,6 +135,16 @@ export const useConversations = () => {
     if (location.workspace) {
       const workspace = location.workspace;
       setExpandedWorkspaces((prev) => (prev.includes(workspace) ? prev : [...prev, workspace]));
+    }
+    // Expand the containing conversation folder if collapsed.
+    if (location.folderId) {
+      const folderKey = conversationFolderSectionKey(location.folderId);
+      setCollapsedSections((prev) => {
+        if (!prev.has(folderKey)) return prev;
+        const next = new Set(prev);
+        next.delete(folderKey);
+        return next;
+      });
     }
 
     let cancelled = false;

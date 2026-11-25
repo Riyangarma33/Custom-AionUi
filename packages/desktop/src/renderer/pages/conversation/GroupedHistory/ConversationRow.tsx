@@ -18,6 +18,7 @@ import {
   EditOne,
   Export,
   FolderClose,
+  FolderOpen,
   Inbox,
   MessageOne,
   MoreOne,
@@ -46,6 +47,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
     selected,
     menuVisible,
     dimIcon = false,
+    indentLevel = 0,
     dragHandle,
   } = props;
   const logos = useAgentLogos();
@@ -62,6 +64,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
     onExport,
     onTogglePin,
     onToggleManualUnread,
+    onMoveToFolder,
     isManualUnread,
     getJobStatus,
   } = props;
@@ -84,10 +87,10 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
       return <CronJobIndicator status={cronStatus} size={16} className='flex-shrink-0' />;
     }
 
-    // When the row is pinned, hovering reveals an overlay on the leading icon —
-    // the drag handle when the row is sortable, otherwise a pushpin marker.
-    // We dim the resting icon on hover so the overlay reads cleanly.
-    const pinnedHoverFade = isPinned ? 'group-hover:opacity-0 transition-opacity' : '';
+    // When the row is pinned or a drag handle is supplied (project-group rows),
+    // hovering reveals an overlay on the leading icon. We dim the resting icon on
+    // hover so the overlay reads cleanly.
+    const pinnedHoverFade = isPinned || dragHandle ? 'group-hover:opacity-0 transition-opacity' : '';
     const composedClass = classNames(pinnedHoverFade);
 
     const leadingMark = resolveConversationLeadingMark(conversation, assistantInfo, logos);
@@ -175,8 +178,10 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
         className={classNames(
           'chat-history__item h-34px rd-8px flex items-center group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px min-w-0 transition-colors',
           collapsed ? 'justify-center px-0' : 'justify-start gap-8px pe-16px',
-          // dimIcon means this row sits inside a project/cron parent — visually indent the row content while keeping the bg full-width
-          !collapsed && (dimIcon ? 'ps-34px' : 'ps-10px'),
+          // Indent the row content while keeping the row background full-width:
+          // 0 = flat list, 1 = under a project row, 2 = inside a conversation folder.
+          !collapsed &&
+            (indentLevel >= 2 ? 'ps-50px' : indentLevel === 1 || dimIcon ? 'ps-34px' : 'ps-10px'),
           {
             'hover:bg-fill-3': !batchMode && !selected,
             '!bg-fill-3': selected,
@@ -210,20 +215,20 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
           ) : (
             renderLeadingIcon()
           )}
-          {/* Hover overlay on the leading icon: drag handle for sortable pinned rows, pushpin marker otherwise */}
+          {/* Hover overlay on the leading icon: drag handle for sortable pinned
+              rows and for draggable project-group rows, pushpin marker otherwise */}
           {!batchMode &&
-            isPinned &&
-            !isMobile &&
             !isGenerating &&
             !isWaitingConfirmation &&
-            (dragHandle ?? (
-              <span
-                className='absolute inset-0 flex-center text-t-secondary pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity'
-                style={{ lineHeight: 0 }}
-              >
-                <Pushpin theme='outline' size='14' />
-              </span>
-            ))}
+            (dragHandle ??
+              (isPinned && !isMobile ? (
+                <span
+                  className='absolute inset-0 flex-center text-t-secondary pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity'
+                  style={{ lineHeight: 0 }}
+                >
+                  <Pushpin theme='outline' size='14' />
+                </span>
+              ) : null))}
         </span>
         <FlexFullContainer className='h-24px min-w-0 flex-1 collapsed-hidden'>
           <Tooltip
@@ -289,6 +294,10 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                       onCreateCronTask(conversation);
                       return;
                     }
+                    if (key === 'moveToFolder') {
+                      onMoveToFolder?.(conversation);
+                      return;
+                    }
                     if (key === 'export') {
                       onExport?.(conversation);
                       return;
@@ -324,6 +333,14 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                       <span>{t('conversation.history.createCronTask')}</span>
                     </div>
                   </Menu.Item>
+                  {isMobile && onMoveToFolder && (
+                    <Menu.Item key='moveToFolder'>
+                      <div className='flex items-center gap-8px'>
+                        <FolderOpen theme='outline' size='14' />
+                        <span>{t('conversation.history.moveToFolder')}</span>
+                      </div>
+                    </Menu.Item>
+                  )}
                   {onExport && (
                     <Menu.Item key='export'>
                       <div className='flex items-center gap-8px'>
@@ -349,6 +366,9 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
             >
               <span
                 data-testid={`conversation-row-menu-${conversation.id}`}
+                role='button'
+                tabIndex={0}
+                aria-label={t('common.more')}
                 className={classNames(
                   'flex-center cursor-pointer transition-colors text-t-secondary hover:text-t-primary size-20px rd-4px sider-action-btn',
                   {
@@ -359,6 +379,13 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                 onClick={(event) => {
                   event.stopPropagation();
                   onOpenMenu(conversation);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onOpenMenu(conversation);
+                  }
                 }}
               >
                 <MoreOne theme='outline' size='14' fill='currentColor' className='block leading-none' />

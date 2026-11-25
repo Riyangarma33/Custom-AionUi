@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { DragEndEvent } from '@dnd-kit/core';
-import { PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import type { CollisionDetection, DragEndEvent } from '@dnd-kit/core';
+import { PointerSensor, pointerWithin, rectIntersection, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/config/storage';
@@ -25,9 +25,29 @@ type UseDragAndDropParams = {
   pinnedConversations: TChatConversation[];
   batchMode: boolean;
   collapsed: boolean;
+  /**
+   * Folder drop handler. `groupId === null` means the drop landed on the
+   * project header ("move back to project root").
+   */
+  onAssignToFolder: (conversationId: string, workspace: string, groupId: string | null) => void;
 };
 
-export const useDragAndDrop = ({ pinnedConversations, batchMode, collapsed }: UseDragAndDropParams) => {
+/**
+ * Prefer what the pointer is actually over (folder headers are small targets),
+ * then fall back to rectangle intersection for the sortable pinned list.
+ */
+const folderAwareCollisionDetection: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args);
+  if (pointerCollisions.length > 0) return pointerCollisions;
+  return rectIntersection(args);
+};
+
+export const useDragAndDrop = ({
+  pinnedConversations,
+  batchMode,
+  collapsed,
+  onAssignToFolder,
+}: UseDragAndDropParams) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
 
@@ -66,6 +86,31 @@ export const useDragAndDrop = ({ pinnedConversations, batchMode, collapsed }: Us
       const activeIdStr = String(active.id);
       const overIdStr = String(over.id);
 
+      const activeData = active.data.current as
+        | { type?: string; conversation?: TChatConversation }
+        | undefined;
+      const overData = over.data.current as
+        | { type?: string; workspace?: string; groupId?: string }
+        | undefined;
+
+      // Project / folder conversation dragged onto a folder or the project header.
+      if (activeData?.type === 'project-conversation' && activeData.conversation) {
+        if (!overData) return;
+        const workspace = activeData.conversation.extra?.workspace;
+        // Folders never span project groups; ignore cross-workspace drops.
+        if (!workspace || overData.workspace !== workspace) return;
+
+        if (overData.type === 'folder' && overData.groupId) {
+          onAssignToFolder(activeData.conversation.id, workspace, overData.groupId);
+          return;
+        }
+        if (overData.type === 'project-root') {
+          onAssignToFolder(activeData.conversation.id, workspace, null);
+        }
+        return;
+      }
+
+      // Existing pinned-list reorder.
       // Build pinned items list with sort orders
       const items = pinnedConversations.map((c) => ({
         id: c.id,
@@ -98,12 +143,13 @@ export const useDragAndDrop = ({ pinnedConversations, batchMode, collapsed }: Us
       await persistSortOrder(activeIdStr, newSortOrder);
       emitter.emit('chat.history.refresh');
     },
-    [pinnedConversations, persistSortOrder]
+    [pinnedConversations, persistSortOrder, onAssignToFolder]
   );
 
   return {
     sensors,
     handleDragEnd,
     isDragEnabled,
+    collisionDetection: folderAwareCollisionDetection,
   };
 };

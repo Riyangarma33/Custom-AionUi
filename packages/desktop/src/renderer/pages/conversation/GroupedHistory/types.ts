@@ -4,13 +4,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ConversationFolder } from '@/common/config/clientSettings';
 import type { TChatConversation } from '@/common/config/storage';
 import type { ReactNode } from 'react';
+
+/**
+ * A folder plus its resolved members, ready to render. `children` is walked by
+ * the renderer (never hardcoded to two levels); the resolver caps effective
+ * depth at `CONVERSATION_FOLDER_MAX_DEPTH`.
+ */
+export type ResolvedConversationFolder = ConversationFolder & {
+  conversations: TChatConversation[];
+  children: ResolvedConversationFolder[];
+};
 
 export type WorkspaceGroup = {
   workspace: string;
   display_name: string;
+  /** Every conversation in the group (folders included) — project-level actions use this. */
   conversations: TChatConversation[];
+  /** Conversations rendered directly under the project row (`group_id` NULL/unresolved). */
+  rootConversations: TChatConversation[];
+  /** Catalog-backed folder tree for this workspace. */
+  folders: ResolvedConversationFolder[];
 };
 
 export type TimelineItem = {
@@ -72,6 +88,14 @@ export type ConversationRowProps = {
   resolveConversationName?: (conversation_id: string) => string | undefined;
   /** When true, the agent icon is dimmed by default and only shows full color on hover. Used inside project folders to reduce visual weight. */
   dimIcon?: boolean;
+  /**
+   * Visual indentation inside a project group: 0 = flat list, 1 = directly
+   * under the project row, 2 = inside a conversation folder. Content is
+   * indented while the row background stays full-width.
+   */
+  indentLevel?: 0 | 1 | 2;
+  /** Mobile-only entry point: open the "Move to folder" action sheet. */
+  onMoveToFolder?: (conversation: TChatConversation) => void;
   /** Hover-reveal drag handle overlaying the leading icon; supplied by the sortable wrapper for reorderable (pinned) rows. */
   dragHandle?: ReactNode;
 };

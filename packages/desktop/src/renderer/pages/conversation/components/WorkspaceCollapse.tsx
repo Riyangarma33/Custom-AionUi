@@ -27,6 +27,10 @@ interface WorkspaceCollapseProps {
   stickyHeader?: boolean;
   /** 吸顶时距滚动容器顶部的偏移(px)，用于让位给上方常驻的分区标题 */
   stickyTop?: number;
+  /** Ref attached to the sticky header element (used as a drop target). */
+  headerRef?: React.Ref<HTMLDivElement>;
+  /** Highlight the header while a draggable is hovering it. */
+  dropActive?: boolean;
 }
 
 /**
@@ -42,6 +46,8 @@ const WorkspaceCollapse: React.FC<WorkspaceCollapseProps> = ({
   trailing,
   stickyHeader = false,
   stickyTop,
+  headerRef,
+  dropActive = false,
 }) => {
   // 侧栏折叠时，强制展开内容并隐藏头部
   const showContent = siderCollapsed || expanded;
@@ -54,8 +60,19 @@ const WorkspaceCollapse: React.FC<WorkspaceCollapseProps> = ({
           内层的半透明 hover 高亮叠在遮罩上而非透出下方滚动内容。 */}
       {!siderCollapsed && (
         <div
-          className={classNames(stickyEnabled && 'sticky z-[9] bg-[var(--bg-2)]')}
-          style={stickyEnabled ? { top: stickyTop ?? 0 } : undefined}
+          ref={headerRef}
+          className={classNames(
+            stickyEnabled && 'sticky z-[9] bg-[var(--bg-2)]',
+            dropActive && 'rd-8px ring-1 ring-inset ring-[rgb(var(--primary-6))]'
+          )}
+          style={
+            stickyEnabled || dropActive
+              ? {
+                  ...(stickyEnabled ? { top: stickyTop ?? 0 } : {}),
+                  ...(dropActive ? { backgroundColor: 'rgba(var(--primary-6), 0.08)' } : {}),
+                }
+              : undefined
+          }
         >
           <div
             className='flex items-center gap-8px h-34px ps-10px pe-8px cursor-pointer hover:bg-fill-3 rd-8px transition-colors min-w-0 group'

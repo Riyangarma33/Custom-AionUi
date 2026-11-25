@@ -4,12 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ConversationFolder } from '@/common/config/clientSettings';
 import type { TChatConversation } from '@/common/config/storage';
 import { getActivityTime } from '@/renderer/utils/chat/timeline';
 import { getWorkspaceDisplayName } from '@/renderer/utils/workspace/workspace';
 import { getWorkspaceUpdateTime } from '@/renderer/utils/workspace/workspaceHistory';
 
 import type { GroupedHistoryResult, TimelineItem, TimelineSection } from '../types';
+import { resolveWorkspaceFolders } from './conversationFolders';
 import { getConversationSortOrder } from './sortOrderHelpers';
 
 export const isConversationPinned = (conversation: TChatConversation): boolean => {
@@ -27,7 +29,8 @@ export const getConversationPinnedAt = (conversation: TChatConversation): number
 
 export const groupConversationsByWorkspace = (
   conversations: TChatConversation[],
-  t: (key: string) => string
+  t: (key: string) => string,
+  folderCatalog: ConversationFolder[] = []
 ): TimelineSection[] => {
   const allWorkspaceGroups = new Map<string, TChatConversation[]>();
   const withoutWorkspaceConvs: TChatConversation[] = [];
@@ -53,6 +56,10 @@ export const groupConversationsByWorkspace = (
     const latestConversationTime = getActivityTime(sortedConvs[0]);
     const updateTime = getWorkspaceUpdateTime(workspace);
     const time = Math.max(updateTime, latestConversationTime);
+    // Bucket by (workspace, group_id). With an empty catalog and every
+    // `group_id` NULL this returns `rootConversations === sortedConvs` and no
+    // folders, i.e. exactly today's rendering.
+    const { rootConversations, folders } = resolveWorkspaceFolders(workspace, folderCatalog, sortedConvs);
     items.push({
       type: 'workspace',
       time,
@@ -64,6 +71,8 @@ export const groupConversationsByWorkspace = (
         // without consulting `extra.is_temporary_workspace` per-row.
         display_name: getWorkspaceDisplayName(workspace, false, t),
         conversations: sortedConvs,
+        rootConversations,
+        folders,
       },
     });
   });
@@ -96,7 +105,8 @@ const isTeamConversation = (conversation: TChatConversation): boolean => {
 
 export const buildGroupedHistory = (
   conversations: TChatConversation[],
-  t: (key: string) => string
+  t: (key: string) => string,
+  folderCatalog: ConversationFolder[] = []
 ): GroupedHistoryResult => {
   // Filter out team-owned conversations; they are only visible via the Teams panel
   const visibleConversations = conversations.filter((conv) => !isTeamConversation(conv));
@@ -116,6 +126,6 @@ export const buildGroupedHistory = (
 
   return {
     pinnedConversations,
-    timelineSections: groupConversationsByWorkspace(normalConversations, t),
+    timelineSections: groupConversationsByWorkspace(normalConversations, t, folderCatalog),
   };
 };
