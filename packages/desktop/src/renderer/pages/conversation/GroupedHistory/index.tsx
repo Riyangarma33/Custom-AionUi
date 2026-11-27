@@ -174,11 +174,34 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     isManualUnread,
   });
 
+  /**
+   * UI wrapper around the persistence-layer `moveConversations` write so every
+   * move surface announces its outcome the way create/rename/delete already do
+   * (P4: move was the only silent operation). Kept in the UI layer on purpose —
+   * the persistence hook stays free of Arco `Message`/`useTranslation` imports and
+   * only reports how many conversations it changed. `moveConversations` resolves
+   * to the number of successful `PATCH …/extra.group_id` writes, so `changed > 0`
+   * is a real success and `changed === 0` (for a non-empty move) means every write
+   * failed. A drop that lands on the destination is still a successful write.
+   */
+  const performMove = useCallback(
+    async (ids: string[], groupId: string | null) => {
+      if (ids.length === 0) return;
+      const changed = await moveConversations(ids, groupId);
+      if (changed > 0) {
+        Message.success(t(groupId ? 'conversation.history.movedToFolder' : 'conversation.history.movedToProjectRoot'));
+      } else {
+        Message.error(t('conversation.history.moveFailed'));
+      }
+    },
+    [moveConversations, t]
+  );
+
   const handleAssignToFolder = useCallback(
     (conversationId: string, workspace: string, groupId: string | null) => {
-      void moveConversations([conversationId], groupId);
+      void performMove([conversationId], groupId);
     },
-    [moveConversations]
+    [performMove]
   );
 
   const { sensors, handleDragEnd, isDragEnabled, collisionDetection } = useDragAndDrop({
@@ -220,15 +243,16 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
    * Desktop row-menu move: the submenu entry already names the destination, so no
    * sheet state is involved. `Dropdown` closes the menu on item activation (the
    * handler returns nothing, and Arco then calls `onVisibleChange(false)`), which
-   * clears `menuVisible` and restores hover-only visibility of the `⋮`.
-   * `moveConversations` is the same platform-neutral write the sheet and the drag
-   * path use (sequential `PATCH …/conversations/<id>` — never parallelized).
+   * clears `menuVisible` and restores hover-only visibility of the `⋮`. The write
+   * goes through `performMove`, the same UI wrapper the mobile sheet and the drag
+   * path use, so this surface also reports the outcome (success/failure toast)
+   * instead of closing silently.
    */
   const handleMoveToGroup = useCallback(
     (conversation: TChatConversation, group_id: string | null) => {
-      void moveConversations([conversation.id], group_id);
+      void performMove([conversation.id], group_id);
     },
-    [moveConversations]
+    [performMove]
   );
 
   const getConversationRowProps = useCallback(
@@ -443,12 +467,12 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
         variant: 'muted',
         disabled: isCurrent,
         onClick: () => {
-          void moveConversations([target.id], groupId);
+          void performMove([target.id], groupId);
           setMoveTarget(null);
         },
       })
     );
-  }, [moveTarget, folderCatalog, moveConversations, t]);
+  }, [moveTarget, folderCatalog, performMove, t]);
 
   if (timelineSections.length === 0 && pinnedConversations.length === 0) {
     return (

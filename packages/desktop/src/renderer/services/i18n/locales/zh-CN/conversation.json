@@ -106,6 +106,9 @@
     "folderDeleteFailed": "删除文件夹失败",
     "moveToFolder": "移动到文件夹",
     "moveToFolderTitle": "移动到文件夹",
+    "movedToFolder": "已移动到文件夹",
+    "movedToProjectRoot": "已移回项目根目录",
+    "moveFailed": "移动对话失败",
     "projectRoot": "项目根目录",
     "dragToFolder": "拖动此对话到文件夹"
   },

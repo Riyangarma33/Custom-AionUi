@@ -106,6 +106,9 @@
     "folderDeleteFailed": "Could not delete folder",
     "moveToFolder": "Move to folder",
     "moveToFolderTitle": "Move to folder",
+    "movedToFolder": "Moved to folder",
+    "movedToProjectRoot": "Moved to project root",
+    "moveFailed": "Could not move conversation",
     "projectRoot": "Project root",
     "dragToFolder": "Drag this chat into a folder"
   },
