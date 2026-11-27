@@ -67,7 +67,16 @@ const FolderRow: React.FC<FolderRowProps> = ({
 
   const menu = (
     <Menu
-      onClickMenuItem={(key) => {
+      onClickMenuItem={(key, event) => {
+        // Phase 3.12e P1: Arco portals the droplist to document.body, but React
+        // synthetic events bubble through the COMPONENT tree — so a menu-item click
+        // otherwise reaches the header div's onClick and toggles collapse (a rename
+        // made an expanded folder's chats "vanish"). Halting here keeps the trigger
+        // span's guard symmetric for the items. Closing is unaffected: Dropdown
+        // clones this Menu and calls its own close logic after this handler.
+        // Same pattern as ExplorerPanel's context menu (which documents why the
+        // halt lives here rather than on a wrapper div around <Menu>).
+        event?.stopPropagation?.();
         if (key === 'rename') onRename(folder);
         else if (key === 'delete') onDelete(folder);
       }}
