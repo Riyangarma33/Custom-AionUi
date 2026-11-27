@@ -81,36 +81,33 @@ export const useDragAndDrop = ({
     async (event: DragEndEvent) => {
       const { active, over } = event;
 
-      if (!over || active.id === over.id) return;
-
       const activeIdStr = String(active.id);
-      const overIdStr = String(over.id);
-
+      const overIdStr = over ? String(over.id) : '';
       const activeData = active.data.current as
         | { type?: string; conversation?: TChatConversation }
         | undefined;
-      const overData = over.data.current as
+      const overData = over?.data.current as
         | { type?: string; workspace?: string; groupId?: string }
         | undefined;
 
-      // Project / folder conversation dragged onto a folder or the project header.
+      // The diagnostic on the reproduced drag showed dnd-kit's `over` was the
+      // correct folder. Use that result, not reconstructed pointer coordinates:
+      // auto-scroll makes activatorEvent + delta an unreliable screen position.
       if (activeData?.type === 'project-conversation' && activeData.conversation) {
-        if (!overData) return;
-        const workspace = activeData.conversation.extra?.workspace;
-        // Folders never span project groups; ignore cross-workspace drops.
-        if (!workspace || overData.workspace !== workspace) return;
+        const conversation = activeData.conversation;
+        const workspace = conversation.extra?.workspace;
+        if (!workspace || !overData || overData.workspace !== workspace) return;
 
         if (overData.type === 'folder' && overData.groupId) {
-          onAssignToFolder(activeData.conversation.id, workspace, overData.groupId);
-          return;
-        }
-        if (overData.type === 'project-root') {
-          onAssignToFolder(activeData.conversation.id, workspace, null);
+          onAssignToFolder(conversation.id, workspace, overData.groupId);
+        } else if (overData.type === 'project-root') {
+          onAssignToFolder(conversation.id, workspace, null);
         }
         return;
       }
 
       // Existing pinned-list reorder.
+      if (!over || active.id === over.id) return;
       // Build pinned items list with sort orders
       const items = pinnedConversations.map((c) => ({
         id: c.id,

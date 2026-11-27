@@ -11,7 +11,7 @@ import { useConversationHistoryContext } from '@/renderer/hooks/context/Conversa
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useCronJobsMap } from '@/renderer/pages/cron';
 import { restrictToVerticalAxis } from '@/renderer/utils/ui/dndModifiers';
-import { DndContext, useDroppable } from '@dnd-kit/core';
+import { DndContext, DragOverlay, MeasuringStrategy, useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Button, Dropdown, Empty, Input, Menu, Message, Modal, Tooltip } from '@arco-design/web-react';
 import { FolderClose, FolderOpen, FolderPlus, MoreOne, Plus, Right } from '@icon-park/react';
@@ -47,9 +47,10 @@ const ProjectDrop: React.FC<{
   workspace: string;
   children: (state: { setHeaderRef: (element: HTMLElement | null) => void; isOver: boolean }) => React.ReactNode;
 }> = ({ workspace, children }) => {
+  const dropData = useMemo(() => ({ type: 'project-root', workspace }), [workspace]);
   const { setNodeRef, isOver } = useDroppable({
     id: `project:${workspace}`,
-    data: { type: 'project-root', workspace },
+    data: dropData,
   });
   return <>{children({ setHeaderRef: setNodeRef, isOver })}</>;
 };
@@ -74,6 +75,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
   const [folderModal, setFolderModal] = useState<FolderModalState | null>(null);
   const [folderSaving, setFolderSaving] = useState(false);
   const [moveTarget, setMoveTarget] = useState<TChatConversation | null>(null);
+  const [draggedConversation, setDraggedConversation] = useState<TChatConversation | null>(null);
 
   const {
     conversations,
@@ -644,7 +646,20 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
           sensors={sensors}
           collisionDetection={collisionDetection}
           modifiers={[restrictToVerticalAxis]}
-          onDragEnd={handleDragEnd}
+          onDragStart={({ active }) => {
+            const data = active.data.current as { type?: string; conversation?: TChatConversation } | undefined;
+            setDraggedConversation(data?.type === 'project-conversation' ? (data.conversation ?? null) : null);
+          }}
+          onDragEnd={(event) => {
+            setDraggedConversation(null);
+            void handleDragEnd(event);
+          }}
+          onDragCancel={() => setDraggedConversation(null)}
+          // Droppable rects go stale while the sidebar auto-scrolls during a long
+          // drag (e.g. a folder with many chats). Re-measure before every
+          // collision check so pointerWithin targets what is actually under the
+          // pointer, not where the folder was when the drag started.
+          measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
         >
           {/* L1: Pinned section */}
           {pinnedConversations.length > 0 && (
@@ -807,6 +822,26 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
                 ))}
             </div>
           )}
+          <DragOverlay dropAnimation={null}>
+            {draggedConversation && (
+              <div
+                className='flex items-center gap-8px h-34px px-10px rd-8px min-w-0 select-none pointer-events-none'
+                style={{
+                  width: 244,
+                  backgroundColor: 'var(--bg-2)',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.35)',
+                  border: '1px solid var(--color-border-2)',
+                }}
+              >
+                <span className='shrink-0 text-t-secondary line-height-0'>
+                  <FolderOpen theme='outline' size={16} />
+                </span>
+                <span className='truncate min-w-0 text-14px font-[500] text-t-primary'>
+                  {draggedConversation.name}
+                </span>
+              </div>
+            )}
+          </DragOverlay>
         </DndContext>
       </div>
     </>

@@ -8,7 +8,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { Dropdown, Menu } from '@arco-design/web-react';
 import { Delete, EditOne, FolderClose, FolderOpen, MoreOne } from '@icon-park/react';
 import classNames from 'classnames';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { ResolvedConversationFolder } from './types';
@@ -46,9 +46,16 @@ const FolderRow: React.FC<FolderRowProps> = ({
   children,
 }) => {
   const { t } = useTranslation();
+  // Stable identity: an inline `data` object would make dnd-kit tear down and
+  // re-register the droppable on every render (each `isOver` flip), which drops
+  // the cached rect for a frame and can lose the drop exactly over long folders.
+  const dropData = useMemo(
+    () => ({ type: 'folder', groupId: folder.group_id, workspace: folder.workspace }),
+    [folder.group_id, folder.workspace]
+  );
   const { setNodeRef, isOver } = useDroppable({
     id: `folder:${folder.group_id}`,
-    data: { type: 'folder', groupId: folder.group_id, workspace: folder.workspace },
+    data: dropData,
   });
 
   if (siderCollapsed) {
@@ -81,7 +88,16 @@ const FolderRow: React.FC<FolderRowProps> = ({
   );
 
   return (
-    <div ref={setNodeRef} className='min-w-0'>
+    <div
+      ref={setNodeRef}
+      className={classNames(
+        'min-w-0 rd-8px transition-colors',
+        // Highlight the WHOLE folder while a chat is dragged over it. The header
+        // alone is often scrolled out of view inside a long folder, so the old
+        // header-only highlight gave no feedback where the pointer actually was.
+        isOver && 'bg-[rgba(var(--primary-6),0.08)] outline outline-1 outline-dashed outline-[rgb(var(--primary-6))]'
+      )}
+    >
       <div
         role='button'
         tabIndex={0}
@@ -91,7 +107,6 @@ const FolderRow: React.FC<FolderRowProps> = ({
           'flex items-center gap-6px h-34px pe-8px cursor-pointer hover:bg-fill-3 rd-8px transition-colors min-w-0 group/folder',
           indentClass
         )}
-        style={isOver ? { backgroundColor: 'rgba(var(--primary-6), 0.12)' } : undefined}
         onClick={onToggle}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {

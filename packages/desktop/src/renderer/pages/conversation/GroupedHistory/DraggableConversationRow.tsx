@@ -5,9 +5,8 @@
  */
 
 import { useDraggable } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
 import { Drag } from '@icon-park/react';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import ConversationRow from './ConversationRow';
@@ -23,13 +22,14 @@ import type { ConversationRowProps } from './types';
  */
 const DraggableConversationRow: React.FC<ConversationRowProps> = (props) => {
   const { t } = useTranslation();
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } = useDraggable({
+  const dragData = useMemo(
+    () => ({ type: 'project-conversation', conversation: props.conversation }),
+    [props.conversation]
+  );
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({
     id: props.conversation.id,
     disabled: props.batchMode,
-    data: {
-      type: 'project-conversation',
-      conversation: props.conversation,
-    },
+    data: dragData,
   });
 
   const dragHandle = (
@@ -53,12 +53,12 @@ const DraggableConversationRow: React.FC<ConversationRowProps> = (props) => {
   return (
     <div
       ref={setNodeRef}
-      className='conversation-drag-wrapper [&.conversation-drag-wrapper+&.conversation-drag-wrapper]:mt-2px'
+      className='conversation-drag-wrapper select-none [&.conversation-drag-wrapper+&.conversation-drag-wrapper]:mt-2px'
+      onDragStart={(event) => event.preventDefault()}
       style={{
-        transform: CSS.Transform.toString(transform),
-        opacity: isDragging ? 0.56 : undefined,
-        position: 'relative',
-        zIndex: isDragging ? 1 : undefined,
+        // With a DragOverlay the source stays in the list. Hide its contents
+        // during the drag so it cannot double-expose text beneath the overlay.
+        opacity: isDragging ? 0 : undefined,
       }}
     >
       <ConversationRow {...props} dragHandle={dragHandle} />
