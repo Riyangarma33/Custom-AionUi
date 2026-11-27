@@ -7,10 +7,37 @@
 import type { ConversationFolder } from '@/common/config/clientSettings';
 import type { TChatConversation } from '@/common/config/storage';
 
-import type { ResolvedConversationFolder } from '../types';
+import type { ConversationMoveTarget, ResolvedConversationFolder } from '../types';
 
 /** Key in the user-scoped `client_preferences` KV (generic, no backend change). */
 export const CONVERSATION_FOLDERS_SETTING_KEY = 'sidebar.conversationFolders';
+
+/**
+ * Sentinel destination id for "move back to the project root". Folder ids are
+ * UUIDs minted by {@link createConversationFolderId}, so this can never collide
+ * with a real folder; both move surfaces (desktop submenu, mobile sheet) key
+ * their root entry with it.
+ */
+export const PROJECT_ROOT_MOVE_KEY = '__project_root__';
+
+/**
+ * Arco menu key for the "Move to folder" affordance: the flat mobile item and the
+ * desktop submenu share it, while each desktop destination is encoded as
+ * `moveToFolder:<group_id>` (`__project_root__` for the root) so one
+ * `onClickMenuItem` can dispatch both without a per-folder handler.
+ */
+export const MOVE_TO_FOLDER_MENU_KEY = 'moveToFolder';
+const MOVE_TO_GROUP_MENU_PREFIX = `${MOVE_TO_FOLDER_MENU_KEY}:`;
+
+export const moveToGroupMenuKey = (group_id: string | null): string =>
+  `${MOVE_TO_GROUP_MENU_PREFIX}${group_id ?? PROJECT_ROOT_MOVE_KEY}`;
+
+/** `undefined` when the key is not a move destination (any other menu item). */
+export const parseMoveToGroupMenuKey = (key: string): string | null | undefined => {
+  if (!key.startsWith(MOVE_TO_GROUP_MENU_PREFIX)) return undefined;
+  const raw = key.slice(MOVE_TO_GROUP_MENU_PREFIX.length);
+  return raw === PROJECT_ROOT_MOVE_KEY ? null : raw;
+};
 
 /**
  * Visual nesting cap for the first release. `parent_id` is always persisted,
@@ -38,6 +65,35 @@ export const getConversationGroupId = (conversation: TChatConversation): string 
   const extra = conversation.extra as { group_id?: unknown } | undefined;
   const value = extra?.group_id;
   return typeof value === 'string' && value.length > 0 ? value : null;
+};
+
+/**
+ * Destinations for a conversation: the project root first, then the folders of
+ * **its own** workspace (folders never span projects), in catalog order — the
+ * order the mobile action sheet has always used. The entry matching the
+ * conversation's current `group_id` is flagged `isCurrent` so every surface
+ * disables it rather than offering a no-op move.
+ *
+ * Shared by both move surfaces (desktop row-menu submenu, mobile action sheet)
+ * so membership logic lives in exactly one place.
+ */
+export const getMoveTargets = (
+  conversation: TChatConversation,
+  folderCatalog: ConversationFolder[],
+  projectRootLabel: string
+): ConversationMoveTarget[] => {
+  const workspace = conversation.extra?.workspace;
+  const currentGroupId = getConversationGroupId(conversation);
+  const folders = folderCatalog.filter((folder) => folder.workspace === workspace);
+
+  return [
+    { groupId: null, label: projectRootLabel, isCurrent: currentGroupId === null },
+    ...folders.map((folder) => ({
+      groupId: folder.group_id,
+      label: folder.name,
+      isCurrent: currentGroupId === folder.group_id,
+    })),
+  ];
 };
 
 /**

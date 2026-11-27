@@ -18,6 +18,19 @@ export type ResolvedConversationFolder = ConversationFolder & {
   children: ResolvedConversationFolder[];
 };
 
+/**
+ * One destination of a "Move to folder" surface. `groupId` is `null` for the
+ * project root; `isCurrent` marks where the conversation already lives so every
+ * surface can disable that entry instead of offering a no-op move. Produced by
+ * `getMoveTargets` and consumed by both the desktop row-menu submenu and the
+ * mobile action sheet.
+ */
+export type ConversationMoveTarget = {
+  groupId: string | null;
+  label: string;
+  isCurrent: boolean;
+};
+
 export type WorkspaceGroup = {
   workspace: string;
   display_name: string;
@@ -94,8 +107,17 @@ export type ConversationRowProps = {
    * indented while the row background stays full-width.
    */
   indentLevel?: 0 | 1 | 2;
-  /** Mobile-only entry point: open the "Move to folder" action sheet. */
+  /** Mobile entry point: open the "Move to folder" action sheet. */
   onMoveToFolder?: (conversation: TChatConversation) => void;
+  /**
+   * Destinations for the desktop row-menu "Move to folder" submenu (project root
+   * first, then the workspace's folders). Supplied together with
+   * `onMoveToFolder` for project/folder rows only; with no folder in the list the
+   * submenu is not rendered at all. The mobile sheet ignores it.
+   */
+  moveTargets?: ConversationMoveTarget[];
+  /** Desktop path: move this conversation to `group_id` (`null` = project root). */
+  onMoveToGroup?: (conversation: TChatConversation, group_id: string | null) => void;
   /** Hover-reveal drag handle overlaying the leading icon; supplied by the sortable wrapper for reorderable (pinned) rows. */
   dragHandle?: ReactNode;
 };

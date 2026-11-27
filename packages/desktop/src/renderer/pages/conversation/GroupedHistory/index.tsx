@@ -30,7 +30,7 @@ import { useConversationActions } from './hooks/useConversationActions';
 import { useConversations } from './hooks/useConversations';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
 import type { ConversationRowProps, ResolvedConversationFolder, WorkspaceGroupedHistoryProps } from './types';
-import { conversationFolderSectionKey, getConversationGroupId } from './utils/conversationFolders';
+import { conversationFolderSectionKey, getMoveTargets, PROJECT_ROOT_MOVE_KEY } from './utils/conversationFolders';
 
 type FolderModalState = {
   mode: 'create' | 'rename';
@@ -216,6 +216,21 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     [handleMenuVisibleChange]
   );
 
+  /**
+   * Desktop row-menu move: the submenu entry already names the destination, so no
+   * sheet state is involved. `Dropdown` closes the menu on item activation (the
+   * handler returns nothing, and Arco then calls `onVisibleChange(false)`), which
+   * clears `menuVisible` and restores hover-only visibility of the `⋮`.
+   * `moveConversations` is the same platform-neutral write the sheet and the drag
+   * path use (sequential `PATCH …/conversations/<id>` — never parallelized).
+   */
+  const handleMoveToGroup = useCallback(
+    (conversation: TChatConversation, group_id: string | null) => {
+      void moveConversations([conversation.id], group_id);
+    },
+    [moveConversations]
+  );
+
   const getConversationRowProps = useCallback(
     (conversation: TChatConversation, indentLevel: 0 | 1 | 2 = 0): ConversationRowProps => ({
       conversation,
@@ -239,6 +254,14 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
       onTogglePin: handleTogglePin,
       onToggleManualUnread: handleToggleManualUnread,
       onMoveToFolder: indentLevel > 0 ? handleOpenMoveToFolder : undefined,
+      // Same destination list for both move surfaces: the desktop row menu renders
+      // it as a submenu, the mobile sheet as entries. Flat "Conversations" rows
+      // (indentLevel 0, no workspace) get neither — there is nothing to move into.
+      moveTargets:
+        indentLevel > 0
+          ? getMoveTargets(conversation, folderCatalog, t('conversation.history.projectRoot'))
+          : undefined,
+      onMoveToGroup: indentLevel > 0 ? handleMoveToGroup : undefined,
       getJobStatus,
       resolveConversationName,
       dimIcon: indentLevel > 0,
@@ -265,6 +288,9 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
       handleTogglePin,
       handleToggleManualUnread,
       handleOpenMoveToFolder,
+      handleMoveToGroup,
+      folderCatalog,
+      t,
       getJobStatus,
       resolveConversationName,
     ]
@@ -401,41 +427,27 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     );
   };
 
-  // Mobile "Move to folder" action sheet: folder list for the conversation's
-  // workspace plus an entry to move it back to the project root.
+  // Mobile "Move to folder" action sheet: the shared destination list (project
+  // root first, then the conversation workspace's folders, current location
+  // disabled) rendered as sheet entries. The desktop row menu consumes the very
+  // same list from `getMoveTargets`, so the two surfaces can never disagree about
+  // membership or about which entry is a no-op.
   const moveSheetEntries = useMemo<MobileActionSheetEntry[]>(() => {
     const target = moveTarget;
     if (!target) return [];
-    const workspace = target.extra?.workspace;
-    const currentGroupId = getConversationGroupId(target);
-    const candidates = folderCatalog.filter((folder) => folder.workspace === workspace);
-    const entries: MobileActionSheetEntry[] = [
-      {
-        key: '__project_root__',
-        icon: <FolderClose theme='outline' size={16} />,
-        label: t('conversation.history.projectRoot'),
+    return getMoveTargets(target, folderCatalog, t('conversation.history.projectRoot')).map(
+      ({ groupId, label, isCurrent }): MobileActionSheetEntry => ({
+        key: groupId ?? PROJECT_ROOT_MOVE_KEY,
+        icon: groupId === null ? <FolderClose theme='outline' size={16} /> : <FolderOpen theme='outline' size={16} />,
+        label,
         variant: 'muted',
-        disabled: currentGroupId === null,
+        disabled: isCurrent,
         onClick: () => {
-          void moveConversations([target.id], null);
+          void moveConversations([target.id], groupId);
           setMoveTarget(null);
         },
-      },
-    ];
-    for (const folder of candidates) {
-      entries.push({
-        key: folder.group_id,
-        icon: <FolderOpen theme='outline' size={16} />,
-        label: folder.name,
-        variant: 'muted',
-        disabled: currentGroupId === folder.group_id,
-        onClick: () => {
-          void moveConversations([target.id], folder.group_id);
-          setMoveTarget(null);
-        },
-      });
-    }
-    return entries;
+      })
+    );
   }, [moveTarget, folderCatalog, moveConversations, t]);
 
   if (timelineSections.length === 0 && pinnedConversations.length === 0) {
@@ -632,6 +644,10 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
         </div>
       </AionModal>
 
+      {/* Mobile-only by design: the sheet's `.sheet` CSS is a full-bleed bottom
+          sheet with no max-width, which is not a desktop idiom. Desktop moves go
+          through the row-menu submenu (`moveTargets` + `onMoveToGroup`), so
+          `moveTarget` is only ever set from the mobile menu item. */}
       {isMobile && (
         <MobileActionSheet
           open={moveTarget !== null}

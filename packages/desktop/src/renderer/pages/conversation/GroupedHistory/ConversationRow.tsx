@@ -32,6 +32,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { ConversationRowProps } from './types';
+import { MOVE_TO_FOLDER_MENU_KEY, moveToGroupMenuKey, parseMoveToGroupMenuKey } from './utils/conversationFolders';
 import { isConversationPinned } from './utils/groupingHelpers';
 
 const ConversationRow: React.FC<ConversationRowProps> = (props) => {
@@ -49,6 +50,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
     dimIcon = false,
     indentLevel = 0,
     dragHandle,
+    moveTargets,
   } = props;
   const logos = useAgentLogos();
   const layout = useLayoutContext();
@@ -65,6 +67,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
     onTogglePin,
     onToggleManualUnread,
     onMoveToFolder,
+    onMoveToGroup,
     isManualUnread,
     getJobStatus,
   } = props;
@@ -81,6 +84,11 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const cronStatus = getJobStatus(conversation.id);
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   const inlineNameTooltipEnabled = !collapsed && !isMobile && !!conversation.name;
+  // Desktop "Move to folder" submenu. Only worth rendering when the workspace
+  // actually has a folder: with zero folders the sole entry would be a disabled
+  // "Project root", which is noise rather than an affordance.
+  const desktopMoveTargets = moveTargets ?? [];
+  const canMoveToFolder = desktopMoveTargets.some((target) => target.groupId !== null);
 
   const renderLeadingIcon = () => {
     if (cronStatus !== 'none') {
@@ -277,6 +285,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
             <Dropdown
               droplist={
                 <Menu
+                  className='conversation-row-menu'
                   onClickMenuItem={(key) => {
                     if (key === 'pin') {
                       onTogglePin(conversation);
@@ -296,6 +305,11 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                     }
                     if (key === 'moveToFolder') {
                       onMoveToFolder?.(conversation);
+                      return;
+                    }
+                    const moveToGroup = parseMoveToGroupMenuKey(key);
+                    if (moveToGroup !== undefined) {
+                      onMoveToGroup?.(conversation, moveToGroup);
                       return;
                     }
                     if (key === 'export') {
@@ -333,14 +347,45 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                       <span>{t('conversation.history.createCronTask')}</span>
                     </div>
                   </Menu.Item>
-                  {isMobile && onMoveToFolder && (
-                    <Menu.Item key='moveToFolder'>
-                      <div className='flex items-center gap-8px'>
-                        <FolderOpen theme='outline' size='14' />
-                        <span>{t('conversation.history.moveToFolder')}</span>
-                      </div>
-                    </Menu.Item>
-                  )}
+                  {onMoveToFolder &&
+                    (isMobile ? (
+                      <Menu.Item key={MOVE_TO_FOLDER_MENU_KEY}>
+                        <div className='flex items-center gap-8px'>
+                          <FolderOpen theme='outline' size='14' />
+                          <span>{t('conversation.history.moveToFolder')}</span>
+                        </div>
+                      </Menu.Item>
+                    ) : (
+                      canMoveToFolder && (
+                        // Desktop gets the same destinations as the mobile action sheet,
+                        // nested in this menu instead of a full-bleed bottom sheet (whose
+                        // `.sheet` CSS has no max-width and is not a desktop idiom). Arco
+                        // pops the submenu sideways and routes item clicks through the parent
+                        // Dropdown, which closes both popups and clears `menuVisible`.
+                        <Menu.SubMenu
+                          key={MOVE_TO_FOLDER_MENU_KEY}
+                          title={
+                            <div className='flex items-center gap-8px'>
+                              <FolderOpen theme='outline' size='14' />
+                              <span>{t('conversation.history.moveToFolder')}</span>
+                            </div>
+                          }
+                        >
+                          {desktopMoveTargets.map((target) => (
+                            <Menu.Item key={moveToGroupMenuKey(target.groupId)} disabled={target.isCurrent}>
+                              <div className='flex items-center gap-8px min-w-0'>
+                                {target.groupId === null ? (
+                                  <FolderClose theme='outline' size='14' className='shrink-0' />
+                                ) : (
+                                  <FolderOpen theme='outline' size='14' className='shrink-0' />
+                                )}
+                                <span className='block max-w-180px truncate'>{target.label}</span>
+                              </div>
+                            </Menu.Item>
+                          ))}
+                        </Menu.SubMenu>
+                      )
+                    ))}
                   {onExport && (
                     <Menu.Item key='export'>
                       <div className='flex items-center gap-8px'>

@@ -9,6 +9,11 @@ import type { ConversationFolder } from '@/common/config/clientSettings';
 import type { TChatConversation } from '@/common/config/storage';
 import {
   getConversationGroupId,
+  getMoveTargets,
+  MOVE_TO_FOLDER_MENU_KEY,
+  moveToGroupMenuKey,
+  parseMoveToGroupMenuKey,
+  PROJECT_ROOT_MOVE_KEY,
   resolveWorkspaceFolders,
   sanitizeConversationFolders,
 } from '@/renderer/pages/conversation/GroupedHistory/utils/conversationFolders';
@@ -139,5 +144,79 @@ describe('resolveWorkspaceFolders', () => {
     const result = resolveWorkspaceFolders(ws, catalog, []);
     expect(result.folders.map((f) => f.group_id)).toEqual(['b']);
     expect(result.folders[0].parent_id).toBeNull();
+  });
+});
+
+describe('getMoveTargets', () => {
+  const workspace = '/ws';
+  const catalog = [
+    folder({ group_id: 'g1', workspace, name: 'Work', order_key: 1024 }),
+    folder({ group_id: 'g2', workspace, name: 'Personal', order_key: 2048 }),
+    folder({ group_id: 'g3', workspace: '/other', name: 'Elsewhere' }),
+  ];
+
+  it('lists the project root first, then the workspace folders in catalog order', () => {
+    const targets = getMoveTargets(conversation('c1', { workspace }), catalog, 'Project root');
+
+    expect(targets.map((t) => t.groupId)).toEqual([null, 'g1', 'g2']);
+    expect(targets.map((t) => t.label)).toEqual(['Project root', 'Work', 'Personal']);
+    // A root conversation has nothing left at the root, so that entry is the no-op.
+    expect(targets.map((t) => t.isCurrent)).toEqual([true, false, false]);
+  });
+
+  it("marks the conversation's own folder as current and leaves the root selectable", () => {
+    const targets = getMoveTargets(conversation('c2', { workspace, group_id: 'g2' }), catalog, 'Project root');
+
+    expect(targets.map((t) => t.isCurrent)).toEqual([false, false, true]);
+  });
+
+  it('scopes destinations to the conversation workspace', () => {
+    const targets = getMoveTargets(conversation('c3', { workspace: '/empty' }), catalog, 'Project root');
+
+    expect(targets).toEqual([{ groupId: null, label: 'Project root', isCurrent: true }]);
+  });
+
+  it('returns only the root entry for an empty catalog', () => {
+    // The desktop submenu hides itself in this case; the mobile sheet still shows
+    // the single (disabled) root entry, exactly as before.
+    expect(getMoveTargets(conversation('c4', { workspace }), [], 'Project root')).toEqual([
+      { groupId: null, label: 'Project root', isCurrent: true },
+    ]);
+  });
+
+  it('leaves nothing current when the membership points at a missing folder', () => {
+    // Orphaned group_id: the row renders at the project root, and moving to the
+    // root is a real write that clears the stale value - so it must stay enabled.
+    const targets = getMoveTargets(conversation('c5', { workspace, group_id: 'gone' }), catalog, 'Project root');
+
+    expect(targets.every((t) => !t.isCurrent)).toBe(true);
+  });
+
+  it('keys the root destination with the shared sentinel', () => {
+    expect(PROJECT_ROOT_MOVE_KEY).toBe('__project_root__');
+    expect(getMoveTargets(conversation('c6', { workspace }), catalog, 'Project root')[0].groupId).toBeNull();
+  });
+});
+
+describe('move-to-folder menu keys', () => {
+  it('round-trips every destination the row-menu submenu renders', () => {
+    // Regression guard for the desktop submenu: `onClickMenuItem` only receives a
+    // string, so the encode/parse pair must return exactly the destination the
+    // entry was rendered for (null = project root, otherwise the folder id).
+    const ids = [null, 'g1', 'b3f0f6f2-3f1e-4d6a-9a72-c2a0e4f9d1aa'];
+    expect(ids.map((id) => parseMoveToGroupMenuKey(moveToGroupMenuKey(id)))).toEqual(ids);
+  });
+
+  it('does not claim other menu items', () => {
+    expect(parseMoveToGroupMenuKey(MOVE_TO_FOLDER_MENU_KEY)).toBeUndefined();
+    expect(parseMoveToGroupMenuKey('archive')).toBeUndefined();
+    expect(parseMoveToGroupMenuKey('pin')).toBeUndefined();
+  });
+
+  it('keeps the flat item key distinct from the encoded destinations', () => {
+    // The mobile sheet is dispatched on `moveToFolder` itself; an encoded folder
+    // must never be mistaken for it.
+    expect(moveToGroupMenuKey('g1')).not.toBe(MOVE_TO_FOLDER_MENU_KEY);
+    expect(parseMoveToGroupMenuKey(MOVE_TO_FOLDER_MENU_KEY)).toBeUndefined();
   });
 });
