@@ -22,6 +22,72 @@
   background-color: var(--bg-6);
 }
 
+/* P3 (3.12e): 36px touch targets for the sidebar icon actions.
+   The folder `⋮` (18px), the conversation `⋮` (20px) and the project `+`/`⋮`
+   (20px each) are all below the ≥36px guidance this phase set for touch, and
+   they are the only sidebar targets that are neither a row nor an
+   action-sheet entry. The chips are NOT resized: an out-of-flow `::after`
+   raises the *hit box* to 36px tall while the visual box, its opaque
+   background chip and the 34px row rhythm (see `.sider-action-btn-mobile`
+   below) stay byte-for-byte identical.
+
+   The overlay is gated from JS (`isMobile && 'sider-touch-hit'`) rather than
+   from `@media (max-width: 767px)`, so it cannot diverge from the flag that
+   makes these buttons reachable on touch: `detectMobileViewportOrTouch()` is
+   deliberately wider than 767px (any touch viewport below 1024px, and a
+   landscape phone is 844px wide) while the rows force the chip visible with
+   `flex: isMobile || menuVisible`. A media-query rule would leave exactly
+   that band visible-but-not-expanded, which is why this block also sits
+   *outside* the mobile media query.
+
+   Insets are capped so neighbouring targets tile instead of fighting:
+   - conversation rows are 36px apart (34px row + 2px margin), so 36px is the
+     exact fit; 40px would overlap the next row's chip by 4px and make taps
+     ambiguous. Measured live: a folder header and its first member row are
+     34px apart and a project header and the row under it 35px, so those two
+     seams share a 1-2px band; DOM order decides it (the lower chip wins) and
+     no ±10px probe reaches it — see dist/phase312-p3-touch.cjs.
+   - the drawer's scroll clip is 8px past a chip's inline-end edge, so
+     inline-end cannot exceed -8px (anything wider is clipped away).
+   - the project `+`/`⋮` pair sits 26px apart centre-to-centre, so each chip
+     grows *away* from its partner only and the 6px gap stays inert (it
+     belongs to the project header, i.e. collapse/expand).
+   - the row `⋮` grows just 2px over the title: the rest of the row must stay
+     "tap anywhere to open the chat". On folder rows the inline-start side is
+     the non-interactive count badge, so the 18px chip may take all 9px.
+   Logical inset properties keep the asymmetry correct under RTL, where the
+   whole group mirrors to the other edge. */
+.sider-touch-hit {
+  position: relative;
+  --hit-block-start: -8px;
+  --hit-block-end: -8px;
+  --hit-inline-start: -2px;
+  --hit-inline-end: -8px;
+}
+.sider-touch-hit::after {
+  content: '';
+  position: absolute;
+  inset-block-start: var(--hit-block-start);
+  inset-block-end: var(--hit-block-end);
+  inset-inline-start: var(--hit-inline-start);
+  inset-inline-end: var(--hit-inline-end);
+}
+/* folder `⋮` — 18px chip: ±9 vertically is what reaches 36px. */
+.sider-touch-hit--folder {
+  --hit-block-start: -9px;
+  --hit-block-end: -9px;
+  --hit-inline-start: -9px;
+}
+/* project header `+` — grows away from its `⋮` partner, never into it. */
+.sider-touch-hit--pair-start {
+  --hit-inline-start: -8px;
+  --hit-inline-end: 0px;
+}
+/* project header `⋮` — grows away from the `+` above. */
+.sider-touch-hit--pair-end {
+  --hit-inline-start: 0px;
+}
+
 /* Section title text — light mode uses text-t-tertiary (#86909c).
    In dark mode, the tertiary token (#5a5a5a) is too dim on #0e0e0e,
    while --text-secondary (#ced3da) is too bright; pick a mid-gray

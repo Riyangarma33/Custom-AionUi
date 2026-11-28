@@ -781,7 +781,10 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
                                     aria-label={t('conversation.history.newConversationInProject')}
                                     className={classNames(
                                       'flex-center cursor-pointer transition-colors text-t-secondary hover:text-t-primary size-20px rd-4px sider-action-btn',
-                                      isMobile ? 'flex' : 'hidden group-hover:flex'
+                                      isMobile ? 'flex' : 'hidden group-hover:flex',
+                                      // P3: 20px chip → 36px hit box, grown away
+                                      // from the `⋮` partner (styles/layout.css).
+                                      isMobile && 'sider-touch-hit sider-touch-hit--pair-start'
                                     )}
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -811,7 +814,10 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
                                     aria-label='Project actions'
                                     className={classNames(
                                       'flex-center cursor-pointer transition-colors text-t-secondary hover:text-t-primary size-20px rd-4px sider-action-btn',
-                                      isMobile ? 'flex' : 'hidden group-hover:flex'
+                                      isMobile ? 'flex' : 'hidden group-hover:flex',
+                                      // P3: 20px chip → 36px hit box, grown away
+                                      // from the `+` partner (styles/layout.css).
+                                      isMobile && 'sider-touch-hit sider-touch-hit--pair-end'
                                     )}
                                     onClick={(e) => e.stopPropagation()}
                                     onKeyDown={(e) => {

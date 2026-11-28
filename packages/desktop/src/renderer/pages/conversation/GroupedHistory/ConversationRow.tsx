@@ -419,6 +419,9 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                   {
                     flex: isMobile || menuVisible,
                     'hidden group-hover:flex': !isMobile && !menuVisible,
+                    // P3: 20px chip → 36px hit box, gated on the same isMobile
+                    // flag that force-shows the chip (see styles/layout.css).
+                    'sider-touch-hit': isMobile,
                   }
                 )}
                 onClick={(event) => {

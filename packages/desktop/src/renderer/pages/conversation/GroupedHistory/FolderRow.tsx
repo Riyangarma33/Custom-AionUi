@@ -150,7 +150,10 @@ const FolderRow: React.FC<FolderRowProps> = ({
             aria-label={t('conversation.history.folderActions')}
             className={classNames(
               'flex-center size-18px cursor-pointer transition-colors text-t-secondary hover:text-t-primary rd-4px sider-action-btn',
-              isMobile ? 'flex' : 'hidden group-hover/folder:flex'
+              isMobile ? 'flex' : 'hidden group-hover/folder:flex',
+              // P3: 18px chip → 36px hit box, gated on the same isMobile flag
+              // that force-shows the chip (see styles/layout.css).
+              isMobile && 'sider-touch-hit sider-touch-hit--folder'
             )}
             onClick={(event) => event.stopPropagation()}
             onKeyDown={(event) => event.stopPropagation()}
