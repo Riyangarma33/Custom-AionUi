@@ -87,6 +87,35 @@ describe('ipcBridge conversation adapter', () => {
     });
   });
 
+  // P5 half 1: a presentation-only write (folder move / sort reindex) opts out of
+  // the backend activity bump by forwarding `touch`. Without it the sidebar would
+  // re-sort projects on every organising action.
+  it('forwards touch:false on a folder-move PATCH', async () => {
+    const { conversation } = await import('@/common/adapter/ipcBridge');
+
+    await conversation.update.invoke({
+      id: 'conv-9',
+      updates: { extra: { group_id: 'folder-1' } },
+      merge_extra: true,
+      touch: false,
+    });
+
+    const call = httpBridgeMocks.calls.find((entry) => entry.path === '/api/conversations/conv-9');
+    expect(call?.method).toBe('PATCH');
+    expect(call?.body).toMatchObject({ extra: { group_id: 'folder-1' }, merge_extra: true, touch: false });
+  });
+
+  it('omits touch when the caller does not opt out (back-compat: pin/rename keep bumping)', async () => {
+    const { conversation } = await import('@/common/adapter/ipcBridge');
+
+    await conversation.update.invoke({ id: 'conv-10', updates: { pinned: true } });
+
+    const call = httpBridgeMocks.calls.find((entry) => entry.path === '/api/conversations/conv-10');
+    // `touch` is left undefined here; httpBridge JSON.stringify drops undefined
+    // keys, so the backend falls back to its `default = true`.
+    expect((call?.body as { touch?: unknown } | undefined)?.touch).toBeUndefined();
+  });
+
   // Not formality: when the body mapping drops `sessions`, NEITHER side errors.
   // The user picks a target with `@@`, the message sends fine, and the agent
   // simply never sees the session block — the most likely silent failure in the

@@ -323,9 +323,18 @@ export const conversation = {
   // `name_source` qualifies a `name` change: 'user' = explicit rename (backend
   // locks the name against agent-generated titles; also the default when absent),
   // 'auto' = frontend-derived default title (stays agent-overwritable).
+  // `touch: false` opts a presentation-only write out of the `updated_at`
+  // activity bump (folder moves, sort-order reindex) so the sidebar — which
+  // sorts by that timestamp — does not float a project the user merely
+  // reorganised. Absent = true: pin/rename/model keep the bump.
   update: httpPatch<
     boolean,
-    { id: string; updates: Partial<TChatConversation> & { name_source?: 'user' | 'auto' }; merge_extra?: boolean }
+    {
+      id: string;
+      updates: Partial<TChatConversation> & { name_source?: 'user' | 'auto' };
+      merge_extra?: boolean;
+      touch?: boolean;
+    }
   >(
     (p) => `/api/conversations/${p.id}`,
     (p) => {
@@ -336,6 +345,7 @@ export const conversation = {
         ...rest,
         ...(model ? { model } : {}),
         merge_extra: p.merge_extra,
+        touch: p.touch,
       };
     }
   ),

@@ -19,6 +19,12 @@ type GroupIdPatch = Partial<TChatConversation['extra']>;
  *
  * NOTE: `merge_extra` is a legacy frontend-only flag — Rust merges
  * unconditionally — but it is sent for parity with the proven sort-order path.
+ *
+ * P5: `touch: false` keeps a folder move (and the delete-folder member-clearing
+ * that reuses this function) out of the `updated_at` activity clock. The sidebar
+ * sorts projects/conversations by that timestamp, so an organising action must
+ * not float a project. The write still broadcasts `listChanged`, so the UI
+ * refreshes; only the timestamp is skipped.
  */
 export const persistConversationGroupId = async (
   conversation_id: string,
@@ -31,6 +37,7 @@ export const persistConversationGroupId = async (
         extra: { group_id } as unknown as GroupIdPatch,
       } as Partial<TChatConversation>,
       merge_extra: true,
+      touch: false,
     });
     return true;
   } catch (error) {

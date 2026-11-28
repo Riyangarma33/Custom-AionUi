@@ -71,6 +71,10 @@ export const useDragAndDrop = ({
           } as Partial<TChatConversation['extra']>,
         } as Partial<TChatConversation>,
         merge_extra: true,
+        // P5: reordering the pinned list is presentation-only, not activity.
+        // `touch: false` keeps `updated_at` from advancing, so a reindex never
+        // re-sorts the project list (same class of write as a folder move).
+        touch: false,
       });
     } catch (error) {
       console.error('[DragAndDrop] Failed to persist sort order:', error);

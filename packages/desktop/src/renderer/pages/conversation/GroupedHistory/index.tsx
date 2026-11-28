@@ -30,7 +30,12 @@ import { useConversationActions } from './hooks/useConversationActions';
 import { useConversations } from './hooks/useConversations';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
 import type { ConversationRowProps, ResolvedConversationFolder, WorkspaceGroupedHistoryProps } from './types';
-import { conversationFolderSectionKey, getMoveTargets, PROJECT_ROOT_MOVE_KEY } from './utils/conversationFolders';
+import {
+  conversationFolderSectionKey,
+  filterChangedMoveIds,
+  getMoveTargets,
+  PROJECT_ROOT_MOVE_KEY,
+} from './utils/conversationFolders';
 
 type FolderModalState = {
   mode: 'create' | 'rename';
@@ -182,19 +187,30 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
    * only reports how many conversations it changed. `moveConversations` resolves
    * to the number of successful `PATCH …/extra.group_id` writes, so `changed > 0`
    * is a real success and `changed === 0` (for a non-empty move) means every write
-   * failed. A drop that lands on the destination is still a successful write.
+   * failed.
+   *
+   * P5 (half 2): a drop that lands on the conversation's current destination is no
+   * longer "a real successful write". `filterChangedMoveIds` first reduces the
+   * request to the ids whose membership actually changes; when nothing changes the
+   * operation is fully inert — no PATCH, no toast, no refresh (the two menu surfaces
+   * already disable the current location; this closes the drag path, which drops
+   * unconditionally). The surviving ids still go through the same P4 toast contract,
+   * and every write carries `touch: false` (P5 half 1) so organising never reorders
+   * the project list.
    */
   const performMove = useCallback(
     async (ids: string[], groupId: string | null) => {
       if (ids.length === 0) return;
-      const changed = await moveConversations(ids, groupId);
+      const changedIds = filterChangedMoveIds(conversations, ids, groupId);
+      if (changedIds.length === 0) return;
+      const changed = await moveConversations(changedIds, groupId);
       if (changed > 0) {
         Message.success(t(groupId ? 'conversation.history.movedToFolder' : 'conversation.history.movedToProjectRoot'));
       } else {
         Message.error(t('conversation.history.moveFailed'));
       }
     },
-    [moveConversations, t]
+    [conversations, moveConversations, t]
   );
 
   const handleAssignToFolder = useCallback(

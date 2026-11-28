@@ -97,6 +97,38 @@ export const getMoveTargets = (
 };
 
 /**
+ * P5 (half 2): the subset of `ids` for which a move to `groupId` is a *real*
+ * change, i.e. everything except conversations already living at the destination.
+ *
+ * A drop onto the current folder is the drag path's no-op — the two menu
+ * surfaces already disable it (`getMoveTargets().isCurrent`), but `useDragAndDrop`
+ * calls `onAssignToFolder` for every drop, so the guard lives here, shared by all
+ * three surfaces. Returning an empty array means "nothing to write", so
+ * `performMove` can stay fully inert (no PATCH, no toast, no refresh).
+ *
+ * An id absent from the loaded `conversations` cannot be proven a no-op, so it is
+ * **kept** in the result: the backend is the source of truth and the write is
+ * cheap (and now `touch`-free), whereas dropping it would silently lose a
+ * legitimate move. Pure — no side effects — so it has a node/Vitest seam like
+ * {@link getMoveTargets}.
+ */
+export const filterChangedMoveIds = (
+  conversations: readonly TChatConversation[],
+  ids: readonly string[],
+  groupId: string | null
+): string[] => {
+  if (ids.length === 0) return [];
+  const groupIdById = new Map(
+    conversations.map((conversation) => [conversation.id, getConversationGroupId(conversation)] as const)
+  );
+  return ids.filter((id) => {
+    const current = groupIdById.get(id);
+    if (current === undefined) return true; // unknown id → keep, cannot prove no-op
+    return current !== groupId;
+  });
+};
+
+/**
  * Defensive parse of the KV payload. The catalog is user-editable JSON, so
  * every field is validated and invalid/dangling entries are dropped rather than
  * allowed to poison the render.

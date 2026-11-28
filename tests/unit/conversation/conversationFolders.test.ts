@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import type { ConversationFolder } from '@/common/config/clientSettings';
 import type { TChatConversation } from '@/common/config/storage';
 import {
+  filterChangedMoveIds,
   getConversationGroupId,
   getMoveTargets,
   MOVE_TO_FOLDER_MENU_KEY,
@@ -195,6 +196,77 @@ describe('getMoveTargets', () => {
   it('keys the root destination with the shared sentinel', () => {
     expect(PROJECT_ROOT_MOVE_KEY).toBe('__project_root__');
     expect(getMoveTargets(conversation('c6', { workspace }), catalog, 'Project root')[0].groupId).toBeNull();
+  });
+});
+
+describe('filterChangedMoveIds (P5 half 2 no-op guard)', () => {
+  const ws = '/ws';
+
+  it('keeps ids whose membership actually changes', () => {
+    const conversations = [
+      conversation('root', { workspace: ws }),
+      conversation('in-g1', { workspace: ws, group_id: 'g1' }),
+    ];
+    // root -> folder g1 is a real change; g1 -> g1 is a no-op.
+    expect(filterChangedMoveIds(conversations, ['root'], 'g1')).toEqual(['root']);
+    expect(filterChangedMoveIds(conversations, ['in-g1'], null)).toEqual(['in-g1']);
+  });
+
+  it('drops ids already at the destination (drag onto the current folder / own header)', () => {
+    const conversations = [
+      conversation('root', { workspace: ws }),
+      conversation('in-g1', { workspace: ws, group_id: 'g1' }),
+    ];
+    // Dropping a folder member on its own folder, or a root chat on its own
+    // project header, must produce an empty write set → performMove stays inert.
+    expect(filterChangedMoveIds(conversations, ['in-g1'], 'g1')).toEqual([]);
+    expect(filterChangedMoveIds(conversations, ['root'], null)).toEqual([]);
+  });
+
+  it('reduces a mixed batch to only the changed ids, preserving order', () => {
+    const conversations = [
+      conversation('a', { workspace: ws }),
+      conversation('b', { workspace: ws, group_id: 'g1' }),
+      conversation('c', { workspace: ws, group_id: 'g2' }),
+    ];
+    // Move a,b,c all into g1: b is already there (dropped), a and c change (kept).
+    expect(filterChangedMoveIds(conversations, ['c', 'b', 'a'], 'g1')).toEqual(['c', 'a']);
+  });
+
+  it('keeps an unknown id — it cannot be proven a no-op', () => {
+    const conversations = [conversation('b', { workspace: ws, group_id: 'g1' })];
+    // 'ghost' is not in the loaded list: keep it so a legitimate move is never
+    // silently dropped (backend is the source of truth; write is touch-free).
+    expect(filterChangedMoveIds(conversations, ['ghost', 'b'], 'g1')).toEqual(['ghost']);
+  });
+
+  it('treats empty/missing/non-string group_id as the project root', () => {
+    const conversations = [
+      conversation('empty', { workspace: ws, group_id: '' }),
+      conversation('number', { workspace: ws, group_id: 42 }),
+      conversation('null', { workspace: ws, group_id: null }),
+    ];
+    // All three already resolve to "no folder" (null), so a move to the root is a
+    // no-op for each; a move into a real folder changes all of them.
+    expect(filterChangedMoveIds(conversations, ['empty', 'number', 'null'], null)).toEqual([]);
+    expect(filterChangedMoveIds(conversations, ['empty', 'number', 'null'], 'g1')).toEqual([
+      'empty',
+      'number',
+      'null',
+    ]);
+  });
+
+  it('keeps a move that clears an orphaned group_id (still a real write)', () => {
+    // Mirrors getMoveTargets "leaves nothing current when the membership points at
+    // a missing folder": the row renders at the root but extra still carries the
+    // stale id, so clearing it to null is a genuine change.
+    const conversations = [conversation('orphan', { workspace: ws, group_id: 'gone' })];
+    expect(filterChangedMoveIds(conversations, ['orphan'], null)).toEqual(['orphan']);
+  });
+
+  it('returns an empty set for an empty request', () => {
+    expect(filterChangedMoveIds([conversation('a', { workspace: ws })], [], null)).toEqual([]);
+    expect(filterChangedMoveIds([], ['a'], null)).toEqual(['a']);
   });
 });
 
